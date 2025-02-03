@@ -1,0 +1,194 @@
+import React from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../(tabs)/index';
+import BottomNav from '@/components/BottomNav';
+import { useUser } from '@/contexts/UserContext';
+
+
+const Tab = createMaterialTopTabNavigator();
+
+const ProfileScreen = ({navigation }: any) => {
+  const { user, access_token } = useUser();
+
+  return (
+    <View style={{ flex: 1, backgroundColor: 'white', paddingTop: 40 }}>
+      {/* Scrollable Header Section */}
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.header}>
+          <Text style={styles.name}>{user?.first_name} {user?.last_name}</Text>
+          <Image
+            source={{ uri: user?.avatar || 'https://via.placeholder.com/100' }}
+            style={styles.profilePicture}
+          />
+          <Text style={styles.username}>@{user?.username}</Text>
+          <Text style={styles.bio}>Developer | Educator | Learner</Text>
+        </View>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>120</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>180</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>85</Text>
+            <Text style={styles.statLabel}>Points</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.editButton}>
+          <Text style={styles.editButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
+
+        {/* Tab Navigator Section */}
+        <View style={{ flex: 1 }}>
+          <Tab.Navigator
+            screenOptions={{
+              tabBarLabelStyle: styles.tabBarLabel,
+              tabBarStyle: styles.tabBar,
+              tabBarIndicatorStyle: styles.tabBarIndicator,
+            }}
+          >
+            <Tab.Screen name="Courses" component={CoursesTab} />
+            <Tab.Screen name="Links" component={LinksTab} />
+            <Tab.Screen name="Readlists" component={ReadlistsTab} />
+          </Tab.Navigator>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Nav with navigation prop passed down */}
+      <View style={styles.bottomnav}>
+        <BottomNav navigation={navigation} user={user}/>
+      </View>
+    </View>
+  );
+};
+
+// Sample Tab Screens
+const CoursesTab = () => (
+  <View style={styles.tabContainer}>
+    <Text>Courses Content</Text>
+  </View>
+);
+
+const LinksTab = () => (
+  <View style={styles.tabContainer}>
+    <Text>Links Content</Text>
+  </View>
+);
+
+const ReadlistsTab = () => (
+  <View style={styles.tabContainer}>
+    <Text>Readlists Content</Text>
+  </View>
+);
+
+const styles = StyleSheet.create({
+  // Add your styles here
+  container: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  scrollContainer: {
+    paddingBottom: 20, // Ensures scrolling works properly
+  },
+  header: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  username: {
+    fontSize: 16
+  },
+  profilePicture: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 10,
+  },
+  bio: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 40,
+    backgroundColor: '#fff',
+    paddingVertical: 15,
+  },
+  stat: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  editButton: {
+    backgroundColor: 'black',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    alignSelf: 'center',
+    marginVertical: 20,
+    width: '80%',
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
+  tabContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabBar: {
+    backgroundColor: '#ffffff',
+    elevation: 0, 
+    shadowOpacity: 0,
+  },
+  tabBarLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'none',
+    color: '#333333', 
+  },
+  tabBarIndicator: {
+    backgroundColor: 'black',
+    height: 3,
+  },
+  bottomnav: {
+    backgroundColor: "white",
+    borderStyle: "solid",
+    borderTopWidth: 1,
+    borderTopColor: "#808080",
+    height: 50,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    alignItems: "center",
+    position: "absolute",
+    bottom: 80,
+    left: 0,
+    right: 0,
+  },
+});
+
+export default ProfileScreen;

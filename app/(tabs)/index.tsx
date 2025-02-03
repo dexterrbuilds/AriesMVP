@@ -1,74 +1,60 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React from 'react';
+import { NavigationContainer, NavigationIndependentTree } from '@react-navigation/native';
+import { UserProvider } from '@/contexts/UserContext';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+// Import screens
+import HomeScreen from '../screens/HomeScreen';
+import InfoScreen from '../screens/InfoScreen';
+import RegisterScreen from '../screens/RegisterScreen';
+import RoleSelectionScreen from '../screens/RoleSelectionScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import ChooseTopicsScreen from '../screens/ChooseTopicScreen';
+import QuickFollowScreen from '../screens/QuickFollowScreen';
+import FeedScreen from '../screens/FeedScreen';
+import MessagesScreen from '../screens/MessagesScreen';
+import NotificationScreen from '../screens/NotificationScreen';
+import LoginScreen from '../screens/LoginScreen';
+import PostScreen from '../screens/PostScreen';
 
-export default function HomeScreen() {
+export type RootStackParamList = {
+  Home: undefined;
+  Info: undefined;
+  Register: undefined;
+  Login: undefined;
+  RoleSelection: undefined;
+  Profile: { user: { first_name: string; last_name: string; avatar?: string; username: string } };
+  ChooseTopic: undefined;
+  QuickFollow: undefined;
+  Feed: undefined;
+  Messages: undefined;
+  Notifications: undefined;
+  Post: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export default function App() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <UserProvider>
+      <NavigationIndependentTree>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName="Home">
+            <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Info" component={InfoScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="ChooseTopic" component={ChooseTopicsScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="QuickFollow" component={QuickFollowScreen} options={{ headerShown: true }}  />
+            <Stack.Screen name="Feed" component={FeedScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Messages" component={MessagesScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Notifications" component={NotificationScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Post" component={PostScreen} options={{ headerShown: false }}  />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </NavigationIndependentTree>
+    </UserProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
