@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import BottomNav from "@/components/BottomNav";
@@ -7,6 +7,27 @@ import { useUser } from '@/contexts/UserContext';
 export default function FeedScreen({route, navigation }: any) {
     const { user, access_token } = useUser();
     const [activeTab, setActiveTab] = useState("For You");
+    const [posts, setPosts] = useState<any[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+
+    useEffect(() => {
+      const fetchPosts = async () => {
+      try {
+        const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/api/feed", {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+        });
+        const data = await response.json();
+        setPosts(data.posts);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      } finally {
+        setLoading(false);
+      }
+      };
+      fetchPosts();
+    }, [access_token]);
   
     const liveEducators = [
       { id: "1", name: "Dexterr", avatar: "https://via.placeholder.com/60" },
@@ -23,19 +44,12 @@ export default function FeedScreen({route, navigation }: any) {
       { id: "3", image: "https://via.placeholder.com/300x100" },
     ];
   
-    const forYouPosts = [
-      { id: "1", author: "John Doe", content: "Check out this project!", image: "https://via.placeholder.com/300x200" },
-      { id: "2", author: "Jane Smith", content: "Tips for blockchain development." },
-      { id: "3", author: "John Doe", content: "Check out this project!", image: "https://via.placeholder.com/300x200" },
-      { id: "4", author: "Jane Smith", content: "Tips for blockchain development." },
-    ];
-  
     const coursePosts = [
       { id: "1", author: "Edu Mentor", content: "New course: Blockchain Basics", image: "https://via.placeholder.com/300x200" },
       { id: "2", author: "Learn Hub", content: "Advanced Solidity programming now available!" },
     ];
   
-    const activeContent = activeTab === "For You" ? forYouPosts : coursePosts;
+    const activeContent = activeTab === "For You" ? posts : coursePosts;
   
     return (
       <View style={styles.container}>
@@ -90,10 +104,19 @@ export default function FeedScreen({route, navigation }: any) {
         <View style={styles.posts}>
           {activeContent.map((post) => (
             <View key={post.id} style={styles.postContainer}>
-              <Text style={styles.postAuthor}>{post.author}</Text>
-              <Text style={styles.postContent}>{post.content}</Text>
-              {post.image && <Image source={{ uri: post.image }} style={styles.postImage} />}
-            
+                <TouchableOpacity onPress={() => navigation.navigate("UserProfile", { userId: post.user.id })}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
+                  {post.user.avatar && (
+                  <Image source={{ uri: post.user.avatar }} style={styles.postAvatar} />
+                  )}
+                  <View>
+                  <Text style={styles.postAuthor}>{post.user.first_name} {post.user.last_name}</Text>
+                  <Text style={styles.postRole}>{post.user.role}</Text>
+                  </View>
+                </View>
+                </TouchableOpacity>
+                <Text style={styles.postContent}>{post.body}</Text>
+                {post.media_link && <Image source={{ uri: post.media_link }} style={styles.postImage} />}
             <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.actionButton} onPress={() => console.log("Liked post", post.id)}>
               <Ionicons name="heart-outline" size={24} color="black" />
@@ -244,6 +267,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9f9f9",
     borderRadius: 10,
   },
+  postAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
   postAuthor: {
     fontWeight: "bold",
     fontSize: 16,
@@ -252,6 +281,10 @@ const styles = StyleSheet.create({
   postContent: {
     fontSize: 14,
     marginBottom: 5,
+  },
+  postRole: {
+    fontSize: 12,
+    color: "#888",
   },
   postImage: {
     width: "100%",
