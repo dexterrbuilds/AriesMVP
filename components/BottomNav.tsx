@@ -2,7 +2,7 @@ import React from "react";
 import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-const BottomNav = ({ navigation, user }: any) => {
+const BottomNav = ({ navigation }: any) => {
   return (
     <View style={styles.bottomnav}>
       <TouchableOpacity onPress={() => navigation.navigate("Feed")}>
@@ -14,7 +14,7 @@ const BottomNav = ({ navigation, user }: any) => {
       <TouchableOpacity onPress={() => navigation.navigate("Messages")}>
         <Ionicons name="chatbox-ellipses-outline" size={30} color="black" />
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => { console.log("Navigating to Profile with user:", user); navigation.navigate("Profile", {user});}}>
+      <TouchableOpacity onPress={() => { navigation.navigate("Profile");}}>
         <Ionicons name="person-outline" size={30} color="black" />
       </TouchableOpacity>
     </View>

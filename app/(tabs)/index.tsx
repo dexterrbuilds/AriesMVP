@@ -16,6 +16,7 @@ import MessagesScreen from '../screens/MessagesScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import LoginScreen from '../screens/LoginScreen';
 import PostScreen from '../screens/PostScreen';
+import UsersProfile from '../screens/UsersProfileScreen';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -30,6 +31,7 @@ export type RootStackParamList = {
   Messages: undefined;
   Notifications: undefined;
   Post: undefined;
+  UsersProfile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,6 +48,7 @@ export default function App() {
             <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="UsersProfile" component={UsersProfile} options={{ headerShown: false }}  />
             <Stack.Screen name="ChooseTopic" component={ChooseTopicsScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="QuickFollow" component={QuickFollowScreen} options={{ headerShown: true }}  />
             <Stack.Screen name="Feed" component={FeedScreen} options={{ headerShown: false }}  />

@@ -9,15 +9,20 @@ import axios from 'axios';
 
 const Tab = createMaterialTopTabNavigator();
 
-const ProfileScreen = ({ navigation }: any) => {
+const UsersProfile = ({ navigation, route }: any) => {
+  const { userName } = route.params;
+  console.log("Navigated with username:", userName);
   const { user, access_token } = useUser();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("Fetching profile for:", userName); // Debugging API call
+    console.log("Access token:", access_token); // Debugging token
+
     const fetchProfileData = async () => {
       try {
-        const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/api/profile/${user?.username}`, {
+        const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/api/profile/${userName}`, {
           headers: {
             Authorization: `Bearer ${access_token}`
           }
@@ -31,7 +36,7 @@ const ProfileScreen = ({ navigation }: any) => {
     };
 
     fetchProfileData();
-  }, [user?.username, access_token]);
+  }, [userName, access_token]);
 
   if (loading) {
     return (
@@ -89,7 +94,7 @@ const ProfileScreen = ({ navigation }: any) => {
       </ScrollView>
 
       <View style={styles.bottomnav}>
-        <BottomNav navigation={navigation}/>
+        <BottomNav navigation={navigation} user={user} />
       </View>
     </View>
   );
@@ -220,4 +225,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileScreen;
+export default UsersProfile;

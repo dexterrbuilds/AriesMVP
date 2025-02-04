@@ -104,7 +104,7 @@ export default function FeedScreen({route, navigation }: any) {
         <View style={styles.posts}>
           {activeContent.map((post) => (
             <View key={post.id} style={styles.postContainer}>
-                <TouchableOpacity onPress={() => navigation.navigate("UserProfile", { userId: post.user.id })}>
+                <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: post.user.username })}>
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
                   {post.user.avatar && (
                   <Image source={{ uri: post.user.avatar }} style={styles.postAvatar} />
