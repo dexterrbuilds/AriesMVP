@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { useUser } from '@/contexts/UserContext';
-
-// Define types for navigation
-
 
 export default function RegisterScreen({ navigation }: any) {
   const { setUser, setAccessToken } = useUser();
@@ -15,14 +11,6 @@ export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
-
-    const saveToSecureStore = async (key: string, value: string) => {
-      try {
-        await SecureStore.setItemAsync(key, value);
-      } catch (error) {
-        console.error('Error saving to SecureStore', error);
-      }
-    };
 
   const handleRegister = async () => {
     if (email && password && password === confirmPassword) {
@@ -47,15 +35,19 @@ export default function RegisterScreen({ navigation }: any) {
         const responseData = await response.json();
 
         if (response.ok) {
-          const { user, access_token } = responseData;
+          const { user, token } = responseData;
 
-          // Save userId and Bearer token to SecureStore
-          await saveToSecureStore('userId', user.id.toString());
-          await saveToSecureStore('access_token', access_token);
-          await saveToSecureStore('user', JSON.stringify(user));  // Save the full user object
+        // Create a new user object including the token
+        const userWithToken = { ...user, token };
 
-          setUser(user);  // Update context
-          setAccessToken(access_token);  // Update context
+        // Save the full user object to SecureStore as a string
+        await SecureStore.setItemAsync('user', JSON.stringify(userWithToken));
+        await SecureStore.setItemAsync('access_token', JSON.stringify(token)); // Also save token separately
+
+        // Update context
+        setUser(userWithToken);
+        setAccessToken(token);
+
 
           Alert.alert('Success', `Welcome, ${user.first_name}!`);
 
@@ -157,7 +149,7 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 24,
     marginBottom: 20,
-    fontWeight: 600,
+    fontWeight: '600',
   },
   input: {
     width: '80%',
