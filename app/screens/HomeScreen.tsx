@@ -21,7 +21,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <View style={styles.container}>
-      <Image source={require('../assets/images/icon.png')}/>
+      <Image style={styles.logo} source={require('../assets/images/icon.jpg')}/>
       <View style={styles.textContainer}>
         <Text style={styles.logoText}>Aries</Text>
         <Text style={styles.tagline}>Learn.earn.enjoy it</Text>
@@ -35,12 +35,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: 'black',
   },
   textContainer: {
     alignItems: 'center',
     position: 'absolute',
     bottom: 50,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   logoText: {
     fontSize: 32,
