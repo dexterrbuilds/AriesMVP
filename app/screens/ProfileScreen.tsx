@@ -1,42 +1,70 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../(tabs)/index';
 import BottomNav from '@/components/BottomNav';
 import { useUser } from '@/contexts/UserContext';
-
+import axios from 'axios';
 
 const Tab = createMaterialTopTabNavigator();
 
-const ProfileScreen = ({navigation }: any) => {
+const ProfileScreen = ({ navigation }: any) => {
   const { user, access_token } = useUser();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/api/profile/${user?.username}`, {
+          headers: {
+            Authorization: `Bearer ${access_token}`
+          }
+        });
+        setProfileData(response.data);
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [user?.username, access_token]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: 'white', paddingTop: 40 }}>
-      {/* Scrollable Header Section */}
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={styles.name}>{user?.first_name} {user?.last_name}</Text>
+          <Text style={styles.name}>{profileData?.username}</Text>
           <Image
-            source={{ uri: user?.avatar || 'https://via.placeholder.com/100' }}
+            source={{ uri: profileData?.avatar || 'https://via.placeholder.com/100' }}
             style={styles.profilePicture}
           />
-          <Text style={styles.username}>@{user?.username}</Text>
+          <Text style={styles.username}>@{profileData?.username}</Text>
           <Text style={styles.bio}>Developer | Educator | Learner</Text>
         </View>
 
         <View style={styles.statsContainer}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>120</Text>
+            <Text style={styles.statValue}>{profileData?.followers}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>180</Text>
+            <Text style={styles.statValue}>{profileData?.following}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>85</Text>
+            <Text style={styles.statValue}>{profileData?.likes.length}</Text>
             <Text style={styles.statLabel}>Points</Text>
           </View>
         </View>
@@ -45,7 +73,6 @@ const ProfileScreen = ({navigation }: any) => {
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
-        {/* Tab Navigator Section */}
         <View style={{ flex: 1 }}>
           <Tab.Navigator
             screenOptions={{
@@ -61,15 +88,13 @@ const ProfileScreen = ({navigation }: any) => {
         </View>
       </ScrollView>
 
-      {/* Bottom Nav with navigation prop passed down */}
       <View style={styles.bottomnav}>
-        <BottomNav navigation={navigation} user={user}/>
+        <BottomNav navigation={navigation} user={user} />
       </View>
     </View>
   );
 };
 
-// Sample Tab Screens
 const CoursesTab = () => (
   <View style={styles.tabContainer}>
     <Text>Courses Content</Text>
@@ -89,13 +114,12 @@ const ReadlistsTab = () => (
 );
 
 const styles = StyleSheet.create({
-  // Add your styles here
   container: {
     flex: 1,
     backgroundColor: 'white',
   },
   scrollContainer: {
-    paddingBottom: 20, // Ensures scrolling works properly
+    paddingBottom: 20,
   },
   header: {
     alignItems: 'center',
@@ -108,7 +132,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   username: {
-    fontSize: 16
+    fontSize: 16,
   },
   profilePicture: {
     width: 100,
@@ -152,7 +176,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-    textAlign: 'center'
+    textAlign: 'center',
   },
   tabContainer: {
     flex: 1,
@@ -161,33 +185,38 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     backgroundColor: '#ffffff',
-    elevation: 0, 
+    elevation: 0,
     shadowOpacity: 0,
   },
   tabBarLabel: {
     fontSize: 16,
     fontWeight: '600',
     textTransform: 'none',
-    color: '#333333', 
+    color: '#333333',
   },
   tabBarIndicator: {
     backgroundColor: 'black',
     height: 3,
   },
   bottomnav: {
-    backgroundColor: "white",
-    borderStyle: "solid",
+    backgroundColor: 'white',
+    borderStyle: 'solid',
     borderTopWidth: 1,
-    borderTopColor: "#808080",
+    borderTopColor: '#808080',
     height: 50,
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 15,
-    alignItems: "center",
-    position: "absolute",
+    alignItems: 'center',
+    position: 'absolute',
     bottom: 80,
     left: 0,
     right: 0,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
