@@ -8,13 +8,16 @@ const BottomNav = ({ navigation }: any) => {
       <TouchableOpacity onPress={() => navigation.navigate("Feed")}>
         <Ionicons name="home-outline" size={30} color="black" />
       </TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate("Search")}>
+        <Ionicons name="search-outline" size={30} color="black" />
+      </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("Feed")}>
         <Ionicons name="grid-outline" size={30} color="black" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("Messages")}>
         <Ionicons name="chatbox-ellipses-outline" size={30} color="black" />
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => { navigation.navigate("Profile");}}>
+      <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
         <Ionicons name="person-outline" size={30} color="black" />
       </TouchableOpacity>
     </View>

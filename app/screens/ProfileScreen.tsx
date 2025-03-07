@@ -1,37 +1,56 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../(tabs)/index';
-import BottomNav from '@/components/BottomNav';
 import { useUser } from '@/contexts/UserContext';
+import BottomNav from '@/components/BottomNav';
 import axios from 'axios';
+import { Feather } from '@expo/vector-icons'; // Import icons
+
+// Define types for better type safety
+interface ProfileData {
+  username: string;
+  followers: number;
+  following: number;
+  likes: string[];
+  bio?: string;
+  profileImage?: string;
+}
 
 const Tab = createMaterialTopTabNavigator();
 
 const ProfileScreen = ({ navigation }: any) => {
   const { user, access_token } = useUser();
-  const [profileData, setProfileData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchProfileData = async () => {
-      try {
-        const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/api/profile/${user?.username}`, {
+  const fetchProfileData = async () => {
+    try {
+      const response = await axios.get(
+        `https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/${user?.username}`,
+        {
           headers: {
             Authorization: `Bearer ${access_token}`
           }
-        });
-        setProfileData(response.data);
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+        }
+      );
+      setProfileData(response.data);
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchProfileData();
   }, [user?.username, access_token]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchProfileData();
+  };
 
   if (loading) {
     return (
@@ -41,39 +60,55 @@ const ProfileScreen = ({ navigation }: any) => {
     );
   }
 
+  const profileImage = profileData?.profileImage 
+    ? { uri: profileData.profileImage } 
+    : require('../assets/images/pfp.png');
+
   return (
-    <View style={{ flex: 1, backgroundColor: 'white', paddingTop: 40 }}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.header}>
-          <Text style={styles.name}>{profileData?.username}</Text>
-          <Image
-            source={{ uri: profileData?.avatar || 'https://via.placeholder.com/100' }}
-            style={styles.profilePicture}
-          />
-          <Text style={styles.username}>@{profileData?.username}</Text>
-          <Text style={styles.bio}>Developer | Educator | Learner</Text>
-        </View>
+    <View style={styles.container}>
+      {/* Header with Back and Settings buttons */}
+      <View style={styles.navigationHeader}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={24} color="black" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <Feather name="settings" size={24} color="black" />
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.statsContainer}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{profileData?.followers}</Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{profileData?.following}</Text>
-            <Text style={styles.statLabel}>Following</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{profileData?.likes.length}</Text>
-            <Text style={styles.statLabel}>Points</Text>
-          </View>
-        </View>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <ProfileHeader 
+          username={profileData?.username || ''} 
+          profileImage={profileImage}
+          bio={profileData?.bio || 'Developer | Educator | Learner'}
+        />
 
-        <TouchableOpacity style={styles.editButton}>
+        <ProfileStats 
+          followers={profileData?.followers || 0}
+          following={profileData?.following || 0}
+          points={profileData?.likes.length || 0}
+        />
+
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={() => navigation.navigate('EditProfile', { profileData })}
+        >
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
-        <View style={{ flex: 1 }}>
+        <View style={styles.tabContainer}>
           <Tab.Navigator
             screenOptions={{
               tabBarLabelStyle: styles.tabBarLabel,
@@ -88,27 +123,49 @@ const ProfileScreen = ({ navigation }: any) => {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomnav}>
-        <BottomNav navigation={navigation}/>
-      </View>
+      <BottomNav navigation={navigation}/>
     </View>
   );
 };
 
+const ProfileHeader = ({ username, profileImage, bio }: { username: string, profileImage: any, bio: string }) => (
+  <View style={styles.header}>
+    <Text style={styles.name}>{username}</Text>
+    <Image source={profileImage} style={styles.profilePicture} />
+    <Text style={styles.username}>@{username}</Text>
+    <Text style={styles.bio}>{bio}</Text>
+  </View>
+);
+
+const ProfileStats = ({ followers, following, points }: { followers: number, following: number, points: number }) => (
+  <View style={styles.statsContainer}>
+    <StatItem value={followers} label="Followers" />
+    <StatItem value={following} label="Following" />
+    <StatItem value={points} label="Points" />
+  </View>
+);
+
+const StatItem = ({ value, label }: { value: number, label: string }) => (
+  <TouchableOpacity style={styles.stat}>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </TouchableOpacity>
+);
+
 const CoursesTab = () => (
-  <View style={styles.tabContainer}>
+  <View style={styles.tabContentContainer}>
     <Text>Courses Content</Text>
   </View>
 );
 
 const LinksTab = () => (
-  <View style={styles.tabContainer}>
+  <View style={styles.tabContentContainer}>
     <Text>Links Content</Text>
   </View>
 );
 
 const ReadlistsTab = () => (
-  <View style={styles.tabContainer}>
+  <View style={styles.tabContentContainer}>
     <Text>Readlists Content</Text>
   </View>
 );
@@ -118,12 +175,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
   },
+  navigationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 30, // Increased to account for status bar
+    paddingBottom: 10,
+    backgroundColor: 'white',
+  },
+  backButton: {
+    padding: 8,
+  },
+  settingsButton: {
+    padding: 8,
+  },
   scrollContainer: {
-    paddingBottom: 20,
+    paddingBottom: 70, // Added more padding to account for bottom nav
   },
   header: {
     alignItems: 'center',
-    padding: 20,
     backgroundColor: '#fff',
   },
   name: {
@@ -132,31 +203,34 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   username: {
-    fontSize: 16,
+    fontSize: 14,
+    color: '#666',
   },
   profilePicture: {
-    width: 100,
-    height: 100,
+    width: 80,
+    height: 80,
     borderRadius: 50,
     marginBottom: 10,
   },
   bio: {
-    fontSize: 16,
+    fontSize: 12,
     color: '#666',
     textAlign: 'center',
+    marginTop: 5,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 40,
     backgroundColor: '#fff',
-    paddingVertical: 15,
+    paddingVertical: 10,
   },
   stat: {
     alignItems: 'center',
+    padding: 10,
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   statLabel: {
@@ -167,9 +241,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 5,
+    borderRadius: 8,
     alignSelf: 'center',
-    marginVertical: 20,
+    marginVertical: 10,
     width: '80%',
   },
   editButtonText: {
@@ -180,13 +254,20 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flex: 1,
+    height: 400, // Fixed height to ensure tabs are visible
+  },
+  tabContentContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   tabBar: {
     backgroundColor: '#ffffff',
     elevation: 0,
     shadowOpacity: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   tabBarLabel: {
     fontSize: 16,
@@ -197,21 +278,6 @@ const styles = StyleSheet.create({
   tabBarIndicator: {
     backgroundColor: 'black',
     height: 3,
-  },
-  bottomnav: {
-    backgroundColor: 'white',
-    borderStyle: 'solid',
-    borderTopWidth: 1,
-    borderTopColor: '#808080',
-    height: 50,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 80,
-    left: 0,
-    right: 0,
   },
   loadingContainer: {
     flex: 1,

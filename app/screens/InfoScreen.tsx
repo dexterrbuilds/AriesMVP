@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 5,
     position: "absolute",
-    bottom: 100,
+    bottom: 20,
     right: 40
   },
   buttonText: {

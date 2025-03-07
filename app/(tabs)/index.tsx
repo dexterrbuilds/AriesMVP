@@ -17,6 +17,10 @@ import NotificationScreen from '../screens/NotificationScreen';
 import LoginScreen from '../screens/LoginScreen';
 import PostScreen from '../screens/PostScreen';
 import UsersProfile from '../screens/UsersProfileScreen';
+import SearchScreen from '../screens/SearchScreen';
+import EditProfile from '../screens/ProfileEdit';
+import SettingsScreen from '../screens/SettingsScreen';
+
 
 export type RootStackParamList = {
   Home: undefined;
@@ -32,6 +36,9 @@ export type RootStackParamList = {
   Notifications: undefined;
   Post: undefined;
   UsersProfile: undefined;
+  Search: undefined;
+  EditProfile: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -50,11 +57,14 @@ export default function App() {
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="UsersProfile" component={UsersProfile} options={{ headerShown: false }}  />
             <Stack.Screen name="ChooseTopic" component={ChooseTopicsScreen} options={{ headerShown: false }}  />
-            <Stack.Screen name="QuickFollow" component={QuickFollowScreen} options={{ headerShown: true }}  />
+            <Stack.Screen name="QuickFollow" component={QuickFollowScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="Feed" component={FeedScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="Messages" component={MessagesScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="Notifications" component={NotificationScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="Post" component={PostScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="EditProfile" component={EditProfile} options={{ headerShown: false }}  />
+            <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }}  />
           </Stack.Navigator>
         </NavigationContainer>
       </NavigationIndependentTree>
