@@ -9,45 +9,116 @@ import {
   ActivityIndicator, 
   TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Linking
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from '@/contexts/UserContext';
+import * as WebBrowser from 'expo-web-browser';
+
+// Function to detect URLs in text
+const findUrls = (text) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.match(urlRegex) || [];
+};
+
+// Function to open links
+const handleOpenLink = async (url) => {
+  try {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      // Use WebBrowser for in-app browser experience
+      await WebBrowser.openBrowserAsync(url);
+    } else {
+      // Fallback to standard Linking API
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        console.error("Don't know how to open this URL:", url);
+      }
+    }
+  } catch (error) {
+    console.error("Error opening URL:", error);
+  }
+};
+
+// Function to render text with clickable links
+const TextWithLinks = ({ text }) => {
+  // Split text by URLs and render accordingly
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  const matches = text.match(urlRegex) || [];
+  
+  return (
+    <Text style={styles.postContent}>
+      {parts.map((part, i) => {
+        // Check if this part is a URL (matches a URL at position i/2)
+        const isUrl = matches.includes(part);
+        if (isUrl) {
+          return (
+            <Text 
+              key={i} 
+              style={styles.linkText}
+              onPress={() => handleOpenLink(part)}
+            >
+              {part}
+            </Text>
+          );
+        }
+        return <Text key={i}>{part}</Text>;
+      })}
+    </Text>
+  );
+};
 
 export default function CommentsScreen({ route, navigation }) {
-  const { postId } = route.params;
+  const { postId, post: routedPost } = route.params;
   const { user, access_token } = useUser();
-  const [post, setPost] = useState(null);
+  const [post, setPost] = useState(routedPost || null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!routedPost);
+  const [loadingComments, setLoadingComments] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch post and comments data
+  // Fetch post data if not provided in route params
   useEffect(() => {
-    fetchPostAndComments();
-  }, [postId, access_token]);
+    if (!routedPost) {
+      fetchPostDetails();
+    } else {
+      // If post is already provided via route, only fetch comments
+      fetchComments();
+    }
+  }, [postId, access_token, routedPost]);
 
-  const fetchPostAndComments = async () => {
-    setLoading(true);
+  const fetchPostDetails = async () => {
     try {
-      // Fetch post details
-      const postResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}`, {
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/posts/${postId}`, {
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json',
         },
       });
       
-      if (!postResponse.ok) {
-        throw new Error("Failed to fetch post");
+      if (!response.ok) {
+        throw new Error("Failed to fetch post details");
       }
       
-      const postData = await postResponse.json();
-      setPost(postData.post);
+      const data = await response.json();
+      setPost(data.post);
       
-      // Fetch comments
-      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/comments`, {
+      // After fetching post, get comments
+      fetchComments();
+    } catch (error) {
+      console.error("Error fetching post details:", error);
+      setLoading(false);
+    }
+  };
+
+  const fetchComments = async () => {
+    setLoadingComments(true);
+    try {
+      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/posts/${postId}/comments`, {
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json',
@@ -61,9 +132,10 @@ export default function CommentsScreen({ route, navigation }) {
       const commentsData = await commentsResponse.json();
       setComments(commentsData.comments || []);
     } catch (error) {
-      console.error("Error fetching post and comments:", error);
+      console.error("Error fetching comments:", error);
     } finally {
       setLoading(false);
+      setLoadingComments(false);
     }
   };
 
@@ -72,13 +144,17 @@ export default function CommentsScreen({ route, navigation }) {
     
     setSubmitting(true);
     try {
-      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/comment`, {
+      // Using the correct endpoint and payload structure
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ body: newComment }),
+        body: JSON.stringify({ 
+          post_id: postId, 
+          content: newComment 
+        }),
       });
       
       if (!response.ok) {
@@ -89,8 +165,9 @@ export default function CommentsScreen({ route, navigation }) {
       // Comment posted successfully
       setNewComment("");
       
-      // Return to feed screen
-      navigation.goBack();
+      // Refresh comments list
+      fetchComments();
+      
     } catch (error) {
       console.error("Error posting comment:", error);
       alert("Failed to post comment. Please try again.");
@@ -103,7 +180,7 @@ export default function CommentsScreen({ route, navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>Loading post details...</Text>
       </View>
     );
   }
@@ -118,7 +195,7 @@ export default function CommentsScreen({ route, navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Comment</Text>
+        <Text style={styles.headerTitle}>Comments</Text>
         <View style={styles.placeholderButton} />
       </View>
 
@@ -135,6 +212,7 @@ export default function CommentsScreen({ route, navigation }) {
                 <View>
                   <Text style={styles.authorName}>{post.user.first_name} {post.user.last_name}</Text>
                   <Text style={styles.username}>@{post.user.username}</Text>
+                  {post.user.role && <Text style={styles.userRole}>{post.user.role}</Text>}
                 </View>
               </View>
             </TouchableOpacity>
@@ -150,11 +228,47 @@ export default function CommentsScreen({ route, navigation }) {
             )}
           </View>
         )}
-        
+
+        {/* Comments Section */}
+        <View style={styles.commentsSection}>
+          <Text style={styles.commentsHeader}>
+            {comments.length > 0 
+              ? `${comments.length} Comment${comments.length !== 1 ? 's' : ''}` 
+              : 'No comments yet'}
+          </Text>
+          
+          {loadingComments ? (
+            <View style={styles.loadingCommentsContainer}>
+              <ActivityIndicator size="small" color="#0000ff" />
+              <Text style={styles.loadingCommentsText}>Loading comments...</Text>
+            </View>
+          ) : (
+            comments.map((comment) => (
+              <View key={comment.id} style={styles.commentItem}>
+                <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: comment.user.username })}>
+                  <View style={styles.commentHeader}>
+                    <Image 
+                      source={{ uri: comment.user.avatar || 'https://via.placeholder.com/100' }} 
+                      style={styles.commentAvatar} 
+                    />
+                    <View>
+                      <Text style={styles.commentAuthor}>{comment.user.first_name} {comment.user.last_name}</Text>
+                      <Text style={styles.commentUsername}>@{comment.user.username}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                <TextWithLinks text={comment.body} />
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+      
+      <View style={styles.commentInputWrapper}>
         <View style={styles.commentInputContainer}>
           <Image 
             source={{ uri: user?.avatar || 'https://via.placeholder.com/100' }} 
-            style={styles.commentAvatar} 
+            style={styles.inputAvatar} 
           />
           <TextInput
             style={styles.commentInput}
@@ -162,12 +276,8 @@ export default function CommentsScreen({ route, navigation }) {
             value={newComment}
             onChangeText={setNewComment}
             multiline
-            autoFocus
           />
         </View>
-      </ScrollView>
-      
-      <View style={styles.footer}>
         <TouchableOpacity 
           style={[
             styles.submitButton, 
@@ -179,7 +289,7 @@ export default function CommentsScreen({ route, navigation }) {
           {submitting ? (
             <ActivityIndicator size="small" color="white" />
           ) : (
-            <Text style={styles.submitButtonText}>Comment</Text>
+            <Ionicons name="send" size={20} color="white" />
           )}
         </TouchableOpacity>
       </View>
@@ -201,6 +311,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
     paddingTop: Platform.OS === "ios" ? 50 : 16,
+    marginTop: 10,
   },
   backButton: {
     padding: 4,
@@ -227,8 +338,8 @@ const styles = StyleSheet.create({
   },
   originalPost: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomWidth: 8,
+    borderBottomColor: "#f0f0f0",
   },
   postHeader: {
     flexDirection: "row",
@@ -249,47 +360,105 @@ const styles = StyleSheet.create({
     color: "#666",
     fontSize: 14,
   },
+  userRole: {
+    color: "#3366ff",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  postContent: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  linkText: {
+    color: "#3366ff",
+    textDecorationLine: "underline",
+  },
   postImage: {
     width: "100%",
     height: 200,
     borderRadius: 8,
     marginTop: 12,
   },
-  commentInputContainer: {
-    flexDirection: "row",
+  commentsSection: {
     padding: 16,
-    alignItems: "flex-start",
+  },
+  commentsHeader: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 16,
+  },
+  loadingCommentsContainer: {
+    alignItems: "center",
+    padding: 16,
+  },
+  loadingCommentsText: {
+    marginTop: 8,
+    color: "#666",
+  },
+  commentItem: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  commentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
   },
   commentAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
+    marginRight: 10,
+  },
+  commentAuthor: {
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  commentUsername: {
+    color: "#666",
+    fontSize: 12,
+  },
+  commentInputWrapper: {
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  commentInputContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  inputAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
   },
   commentInput: {
     flex: 1,
-    minHeight: 80,
+    minHeight: 36,
     maxHeight: 120,
     fontSize: 16,
-    textAlignVertical: "top",
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
   },
   submitButton: {
     backgroundColor: "#3366ff",
     borderRadius: 24,
-    paddingVertical: 12,
+    width: 44,
+    height: 44,
     alignItems: "center",
+    justifyContent: "center",
   },
   disabledButton: {
     backgroundColor: "#a0b4ff",
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
   },
 });

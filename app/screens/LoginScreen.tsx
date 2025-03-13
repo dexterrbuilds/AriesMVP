@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
-  Image, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, Dimensions
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, Dimensions
 } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { useUser } from '@/contexts/UserContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Animatable from 'react-native-animatable';
+import CustomAlert from '@/components/CustomAlert'; // Import the custom alert component
 
 const { width } = Dimensions.get('window');
 
@@ -18,6 +19,13 @@ const LoginScreen = ({ navigation }: any) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Custom alert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: '',
+    message: ''
+  });
 
   const saveToSecureStore = async (key: string, value: string) => {
     try {
@@ -27,9 +35,25 @@ const LoginScreen = ({ navigation }: any) => {
     }
   };
 
+  const showSuccessAlert = (title: string, message: string = '', user: any) => {
+    setAlertConfig({ title, message });
+    setAlertVisible(true);
+    
+    // Auto-navigate after showing the alert
+    // The alert will auto-dismiss based on its duration
+    setTimeout(() => {
+      navigation.navigate('Feed', { user });
+    }, 0); // Match this with the alert duration
+  };
+
+  const showErrorAlert = (title: string, message: string) => {
+    setAlertConfig({ title, message });
+    setAlertVisible(true);
+  };
+
   const handleLogin = async () => {
     if (!email || !username || !password) {
-      Alert.alert('Error', 'All fields are required.');
+      showErrorAlert('Error', 'All fields are required.');
       return;
     }
 
@@ -51,9 +75,9 @@ const LoginScreen = ({ navigation }: any) => {
       setUser(user);  // Update context
       setAccessToken(access_token);  // Update context
 
-      Alert.alert('Success', `Welcome, ${user.first_name}!`);
-
-      navigation.navigate('Feed', { user });
+      // Show success alert and auto-navigate
+      showSuccessAlert('Login Successful', `Welcome back, ${user.first_name}!`, user);
+      
     } catch (error) {
       let errorMessage = 'An error occurred. Please try again.';
 
@@ -63,7 +87,7 @@ const LoginScreen = ({ navigation }: any) => {
         errorMessage = error.message;
       }
 
-      Alert.alert('Login Failed', errorMessage);
+      showErrorAlert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -83,6 +107,14 @@ const LoginScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Custom Alert at the top */}
+      <CustomAlert
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+      />
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -204,10 +236,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
     marginTop: 40,
-  },
-  logo: {
-    width: 100,
-    height: 100,
   },
   appName: {
     fontSize: 28,

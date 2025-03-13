@@ -269,6 +269,12 @@ const ProfileScreen = ({ navigation }: any) => {
             >
               <Ionicons name="chatbubble-ellipses-outline" size={20} color="white" />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={() => navigation.navigate('EditProfile', { userName: profileData?.username })}
+            >
+              <Ionicons name="pencil-outline" size={20} color="white" />
+            </TouchableOpacity>
           </View>
         </View>
 

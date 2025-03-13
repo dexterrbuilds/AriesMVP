@@ -19,6 +19,8 @@ import SearchScreen from '../screens/SearchScreen';
 import EditProfile from '../screens/ProfileEdit';
 import SettingsScreen from '../screens/SettingsScreen';
 import ConversationScreen from '../screens/ConversationScreen';
+import CommentsScreen from '../screens/CommentScreen';
+import PostDetailsScreen from '../screens/PostDetailsScreen';
 
 
 export type RootStackParamList = {
@@ -39,6 +41,8 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Conversation: { userName: string };
+  Comments: { postId: number };
+  PostDetails: { postId: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -66,6 +70,9 @@ export default function App() {
             <Stack.Screen name="EditProfile" component={EditProfile} options={{ headerShown: false }}  />
             <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="Conversation" component={ConversationScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Comments" component={CommentsScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="PostDetails" component={PostDetailsScreen} options={{ headerShown: false
+            }} />
           </Stack.Navigator>
         </NavigationContainer>
       </NavigationIndependentTree>

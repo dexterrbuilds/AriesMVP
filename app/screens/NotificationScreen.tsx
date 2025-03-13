@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, ActivityIndicator, ScrollView, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import BottomNav from "@/components/BottomNav";
 import { useUser } from '@/contexts/UserContext';
-
 
 export default function NotificationScreen({ navigation }: any) {
     const [searchQuery, setSearchQuery] = useState("");
@@ -12,7 +11,6 @@ export default function NotificationScreen({ navigation }: any) {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState("All");
     const { user, access_token } = useUser();
-
 
     // Define notification types for tabs
     const notificationTypes = {
@@ -135,125 +133,145 @@ export default function NotificationScreen({ navigation }: any) {
         }
     };
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-                    <Ionicons name="person-circle" size={30} color="black" />
-                </TouchableOpacity>
-                <Text style={styles.screenTitle}>Notifications</Text>
-                <TouchableOpacity>
-                    <Ionicons name="notifications" size={30} color="black" />
-                </TouchableOpacity>
-            </View>
-            
-            <View style={styles.searchBar}>
-                <Ionicons name="search" size={20} color="#888" />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search notifications"
-                    value={searchQuery}
-                    onChangeText={(text) => setSearchQuery(text)}
-                />
-                {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery("")}>
-                        <Ionicons name="close-circle" size={20} color="#888" />
-                    </TouchableOpacity>
+    const renderNotificationItem = ({ item }) => {
+        const content = formatNotificationContent(item);
+        return (
+            <TouchableOpacity style={[styles.notificationItem, !item.seen && styles.unreadNotification]}>
+                {content.avatar ? (
+                    <View style={styles.avatarContainer}>
+                        <TouchableOpacity>
+                            <View style={styles.avatar}>
+                                <Text style={styles.avatarText}>{content.avatar ? "👤" : "📣"}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <View style={styles.iconContainer}>
+                        <Ionicons 
+                            name={
+                                content.type === "Message" ? "chatbubble-ellipses" :
+                                content.type === "Like" ? "heart" :
+                                content.type === "Follow" ? "person-add" :
+                                content.type === "Hire" ? "briefcase" : "notifications"
+                            } 
+                            size={24} 
+                            color="#0066cc" 
+                        />
+                    </View>
                 )}
-            </View>
+                <View style={styles.notificationContent}>
+                    <Text style={styles.notificationTitle}>{content.title}</Text>
+                    <Text style={styles.notificationDescription}>{content.description}</Text>
+                    <Text style={styles.notificationTimestamp}>{formatDate(item.created_at)}</Text>
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
-            {/* Notification Type Tabs */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsContainer}>
-                {Object.keys(notificationTypes).map((type) => (
-                    <TouchableOpacity
-                        key={type}
-                        style={[
-                            styles.tab,
-                            activeTab === type && styles.activeTab
-                        ]}
-                        onPress={() => setActiveTab(type)}
+    return (
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.container}>
+                {/* Header */}
+                <View style={styles.topBar}>
+                    <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
+                        <Ionicons name="person-circle" size={30} color="black" />
+                    </TouchableOpacity>
+                    <Text style={styles.screenTitle}>Notifications</Text>
+                    <TouchableOpacity>
+                        <Ionicons name="notifications" size={30} color="black" />
+                    </TouchableOpacity>
+                </View>
+                
+                {/* Search Bar */}
+                <View style={styles.searchBar}>
+                    <Ionicons name="search" size={20} color="#888" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search notifications"
+                        value={searchQuery}
+                        onChangeText={(text) => setSearchQuery(text)}
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery("")}>
+                            <Ionicons name="close-circle" size={20} color="#888" />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {/* Fixed Height Tabs Container */}
+                <View style={styles.tabsOuterContainer}>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false} 
+                        contentContainerStyle={styles.tabsScrollContent}
                     >
-                        <Text style={[
-                            styles.tabText,
-                            activeTab === type && styles.activeTabText
-                        ]}>
-                            {notificationTypes[type]}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-
-            {loading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#0000ff" />
-                    <Text style={styles.loadingText}>Loading notifications...</Text>
-                </View>
-            ) : error ? (
-                <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={fetchNotifications}>
-                        <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredNotifications}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={({ item }) => {
-                        const content = formatNotificationContent(item);
-                        return (
-                            <TouchableOpacity style={[styles.notificationItem, !item.seen && styles.unreadNotification]}>
-                                {content.avatar ? (
-                                    <View style={styles.avatarContainer}>
-                                        <TouchableOpacity>
-                                            <View style={styles.avatar}>
-                                                <Text style={styles.avatarText}>{content.avatar ? "👤" : "📣"}</Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <View style={styles.iconContainer}>
-                                        <Ionicons 
-                                            name={
-                                                content.type === "Message" ? "chatbubble-ellipses" :
-                                                content.type === "Like" ? "heart" :
-                                                content.type === "Follow" ? "person-add" :
-                                                content.type === "Hire" ? "briefcase" : "notifications"
-                                            } 
-                                            size={24} 
-                                            color="#0066cc" 
-                                        />
-                                    </View>
-                                )}
-                                <View style={styles.notificationContent}>
-                                    <Text style={styles.notificationTitle}>{content.title}</Text>
-                                    <Text style={styles.notificationDescription}>{content.description}</Text>
-                                    <Text style={styles.notificationTimestamp}>{formatDate(item.created_at)}</Text>
-                                </View>
+                        {Object.keys(notificationTypes).map((type) => (
+                            <TouchableOpacity
+                                key={type}
+                                style={[
+                                    styles.tab,
+                                    activeTab === type && styles.activeTab
+                                ]}
+                                onPress={() => setActiveTab(type)}
+                            >
+                                <Text style={[
+                                    styles.tabText,
+                                    activeTab === type && styles.activeTabText
+                                ]}>
+                                    {notificationTypes[type]}
+                                </Text>
                             </TouchableOpacity>
-                        );
-                    }}
-                    contentContainerStyle={styles.notificationList}
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No notifications found</Text>
+                        ))}
+                    </ScrollView>
+                </View>
+
+                {/* Content Area */}
+                <View style={styles.contentContainer}>
+                    {loading ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#0066cc" />
+                            <Text style={styles.loadingText}>Loading notifications...</Text>
                         </View>
-                    }
-                    refreshing={loading}
-                    onRefresh={fetchNotifications}
-                />
-            )}
-            <View style={styles.bottomnav}>
-                <BottomNav navigation={navigation}/>
+                    ) : error ? (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>{error}</Text>
+                            <TouchableOpacity style={styles.retryButton} onPress={fetchNotifications}>
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={filteredNotifications}
+                            keyExtractor={(item) => item.id.toString()}
+                            renderItem={renderNotificationItem}
+                            contentContainerStyle={styles.notificationList}
+                            ListEmptyComponent={
+                                <View style={styles.emptyContainer}>
+                                    <Text style={styles.emptyText}>No notifications found</Text>
+                                </View>
+                            }
+                            refreshing={loading}
+                            onRefresh={fetchNotifications}
+                        />
+                    )}
+                </View>
+                
+                {/* Bottom Navigation */}
+                <View style={styles.bottomNavContainer}>
+                    <BottomNav navigation={navigation}/>
+                </View>
             </View>
-        </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    safeArea: {
         flex: 1,
         backgroundColor: "#fff",
+    },
+    container: {
+        flex: 1,
         paddingTop: 40,
         paddingHorizontal: 10,
     },
@@ -261,7 +279,8 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
     },
     screenTitle: {
         fontSize: 18,
@@ -273,7 +292,8 @@ const styles = StyleSheet.create({
         backgroundColor: "#f5f5f5",
         padding: 10,
         borderRadius: 10,
-        marginBottom: 15,
+        marginBottom: 10,
+        marginHorizontal: 10,
     },
     searchInput: {
         flex: 1,
@@ -281,9 +301,15 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: "#555",
     },
-    tabsContainer: {
-        flexDirection: "row",
-        marginBottom: 15,
+    // Fixed height tabs container
+    tabsOuterContainer: {
+        height: 50, // Fixed height for tabs container
+        marginBottom: 5,
+    },
+    tabsScrollContent: {
+        height: 50, // Match the height of the container
+        alignItems: 'center', // Center tabs vertically
+        paddingHorizontal: 10,
     },
     tab: {
         paddingHorizontal: 15,
@@ -291,6 +317,8 @@ const styles = StyleSheet.create({
         marginRight: 10,
         borderRadius: 20,
         backgroundColor: "#f5f5f5",
+        height: 36, // Fixed height for each tab
+        justifyContent: 'center', // Center text vertically
     },
     activeTab: {
         backgroundColor: "#0066cc",
@@ -303,8 +331,13 @@ const styles = StyleSheet.create({
         color: "white",
         fontWeight: "bold",
     },
+    // Content area
+    contentContainer: {
+        flex: 1,
+    },
     notificationList: {
-        paddingBottom: 60,
+        paddingHorizontal: 10,
+        paddingBottom: 10,
     },
     notificationItem: {
         backgroundColor: "#f9f9f9",
@@ -402,19 +435,9 @@ const styles = StyleSheet.create({
         color: "#999",
         textAlign: "center",
     },
-    bottomnav: {
-        backgroundColor: "white",
-        borderStyle: "solid",
+    bottomNavContainer: {
+        height: 50,
         borderTopWidth: 1,
         borderTopColor: "#808080",
-        height: 50,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        paddingHorizontal: 15,
-        alignItems: "center",
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
     },
 });

@@ -399,7 +399,13 @@ export default function FeedScreen({route, navigation }: any) {
                          </Text>
                        </TouchableOpacity>
                        
-                       <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("Comments", { postId: post.id })}>
+                       <TouchableOpacity 
+                         style={styles.actionButton} 
+                         onPress={() => navigation.navigate("Comments", { 
+                           postId: post.id,
+                           post: post // Pass the entire post object
+                         })}
+                       >
                          <Ionicons name="chatbubble-outline" size={24} color="#666" />
                          <Text style={styles.actionText}>
                            {post.comments_count > 0 ? `${post.comments_count}` : ''} Comment{post.comments_count !== 1 ? 's' : ''}

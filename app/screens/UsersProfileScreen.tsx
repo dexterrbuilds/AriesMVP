@@ -53,10 +53,17 @@ const UsersProfile = ({ navigation, route }: any) => {
 
   const toggleFollow = async () => {
     try {
-      // Call your follow/unfollow API
+      const userId = profileData?.posts?.[0]?.user_id || profileData?.id;
+      console.log('User ID:', userId);
+    
+      if (!userId) {
+        console.error('User ID not found');
+        return;
+      }
+      
       const endpoint = isFollowing 
-        ? `https://ariesmvp-9903a26b3095.herokuapp.com/api/unfollow/${userName}`
-        : `https://ariesmvp-9903a26b3095.herokuapp.com/api/follow/${userName}`;
+        ? `https://ariesmvp-9903a26b3095.herokuapp.com/api/unfollow/${userId}`
+        : `https://ariesmvp-9903a26b3095.herokuapp.com/api/follow/${userId}`;
       
       await axios.post(endpoint, {}, {
         headers: {
@@ -449,7 +456,7 @@ const styles = StyleSheet.create({
   },
   role: {
     fontSize: 15,
-    color: '#657786',
+    color: '#1DA1F2',
     marginBottom: 15,
   },
   statsContainer: {
@@ -457,32 +464,35 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   stat: {
-    flexDirection: 'row',
     marginRight: 20,
   },
   statValue: {
     fontWeight: 'bold',
-    marginRight: 5,
+    fontSize: 16,
   },
   statLabel: {
     color: '#657786',
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabNavigator: {
     flex: 1,
-    backgroundColor: 'white',
+  },
+  tabBarLabel: {
+    fontWeight: 'bold',
+    textTransform: 'none',
+    fontSize: 14,
   },
   tabBar: {
-    backgroundColor: '#ffffff',
     elevation: 0,
     shadowOpacity: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
-  },
-  tabBarLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    textTransform: 'none',
-    color: '#333333',
+    backgroundColor: 'white',
   },
   tabBarIndicator: {
     backgroundColor: 'black',
@@ -490,39 +500,7 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     flex: 1,
-    backgroundColor: 'white',
-  },
-  tabItemContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  postsListContent: {
-    paddingBottom: 80, // Extra padding to account for bottom nav
-  },
-  genericListContent: {
-    paddingBottom: 80, // Extra padding to account for bottom nav
-  },
-  bottomnav: {
-    backgroundColor: 'white',
-    borderStyle: 'solid',
-    borderTopWidth: 1,
-    borderTopColor: '#808080',
-    height: 50,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#f8f8f8',
   },
   noContentContainer: {
     flex: 1,
@@ -530,12 +508,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  // Post item styles
   postItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
     backgroundColor: 'white',
+    padding: 15,
+    marginBottom: 8,
+    borderRadius: 8,
   },
   postHeader: {
     flexDirection: 'row',
@@ -553,29 +530,53 @@ const styles = StyleSheet.create({
   },
   postUsername: {
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 15,
   },
   postDate: {
     color: '#657786',
-    fontSize: 12,
+    fontSize: 13,
   },
   postBody: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     marginBottom: 10,
   },
   postImage: {
     width: '100%',
     height: 200,
-    borderRadius: 10,
+    borderRadius: 8,
     marginBottom: 10,
   },
   postActions: {
     flexDirection: 'row',
-    marginTop: 10,
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    maxWidth: 150,
   },
   postAction: {
-    marginRight: 24,
+    paddingHorizontal: 10,
+  },
+  postsListContent: {
+    padding: 8,
+  },
+  tabItemContainer: {
+    backgroundColor: 'white',
+    padding: 15,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  genericListContent: {
+    padding: 8,
+  },
+  bottomnav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    zIndex: 1000,
   },
 });
 

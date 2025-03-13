@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useUser } from '@/contexts/UserContext';
+import * as FileSystem from 'expo-file-system'; // Add this import
 
 export default function EditProfile() {
   const { user, access_token } = useUser();
@@ -63,41 +64,71 @@ export default function EditProfile() {
     setLoading(true);
 
     try {
-      // Create a new FormData instance specifically for the avatar
-      const avatarFormData = new FormData();
+      // Get file information
+      const fileInfo = await FileSystem.getInfoAsync(mediaUri);
+      if (!fileInfo.exists) {
+        throw new Error("File doesn't exist");
+      }
       
-      // Get the file as a blob
-      const response = await fetch(mediaUri);
-      const blob = await response.blob();
+      // Get file name from URI
+      const fileName = mediaUri.split('/').pop() || 'profile.jpg';
       
-      // Append ONLY the avatar to the form data
-      avatarFormData.append("avatar", blob, "profile.jpg");
-
-      // Make the request with ONLY the avatar
-      const uploadResponse = await fetch(
+      // Check file type
+      const fileType = fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') 
+        ? 'image/jpeg' 
+        : fileName.endsWith('.png') 
+          ? 'image/png' 
+          : 'image/jpeg'; // Default to jpeg if unknown
+      
+      // Create form data properly for React Native
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri: mediaUri,
+        name: fileName,
+        type: fileType,
+      } as any);
+      
+      console.log("Uploading image:", { uri: mediaUri, name: fileName, type: fileType });
+      
+      // Make the request
+      const response = await fetch(
         "https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/avatar", 
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${access_token}`,
-            // Don't set Content-Type explicitly, let fetch set it with the boundary
+            Accept: 'application/json',
+            // Don't set Content-Type - let it be set automatically with boundary
           },
-          body: avatarFormData,
+          body: formData,
         }
       );
-
-      const data = await uploadResponse.json();
       
-      if (uploadResponse.ok) {
+      // Debug response status
+      console.log("Response status:", response.status);
+      
+      // Get the response data
+      let responseData;
+      const responseText = await response.text();
+      console.log("Raw response:", responseText);
+      
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.log("Couldn't parse response as JSON");
+        responseData = { message: responseText };
+      }
+      
+      if (response.ok) {
         Alert.alert("Success", "Profile picture updated successfully!");
         setProfileImage(mediaUri); // Save updated profile image
         setMediaUri(null); // Clear preview
       } else {
-        Alert.alert("Error", data.message || "Failed to update profile picture.");
+        Alert.alert("Error", responseData.message || `Failed with status: ${response.status}`);
       }
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert("Error", "An error occurred while uploading.");
+      Alert.alert("Error", `Upload failed: ${error.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -141,12 +172,13 @@ export default function EditProfile() {
         style={[styles.saveButton, (!mediaUri || loading) && styles.disabledButton]} 
         disabled={!mediaUri || loading}
       >
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Upload Avatar</Text>}
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}
       </TouchableOpacity>
     </View>
   );
 }
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
