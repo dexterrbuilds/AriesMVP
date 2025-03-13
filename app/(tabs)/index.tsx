@@ -2,8 +2,6 @@ import React from 'react';
 import { NavigationContainer, NavigationIndependentTree } from '@react-navigation/native';
 import { UserProvider } from '@/contexts/UserContext';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-// Import screens
 import HomeScreen from '../screens/HomeScreen';
 import InfoScreen from '../screens/InfoScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -20,6 +18,7 @@ import UsersProfile from '../screens/UsersProfileScreen';
 import SearchScreen from '../screens/SearchScreen';
 import EditProfile from '../screens/ProfileEdit';
 import SettingsScreen from '../screens/SettingsScreen';
+import ConversationScreen from '../screens/ConversationScreen';
 
 
 export type RootStackParamList = {
@@ -39,6 +38,7 @@ export type RootStackParamList = {
   Search: undefined;
   EditProfile: undefined;
   Settings: undefined;
+  Conversation: { userName: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -65,6 +65,7 @@ export default function App() {
             <Stack.Screen name="Post" component={PostScreen} options={{ headerShown: false }}  />
             <Stack.Screen name="EditProfile" component={EditProfile} options={{ headerShown: false }}  />
             <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }}  />
+            <Stack.Screen name="Conversation" component={ConversationScreen} options={{ headerShown: false }}  />
           </Stack.Navigator>
         </NavigationContainer>
       </NavigationIndependentTree>

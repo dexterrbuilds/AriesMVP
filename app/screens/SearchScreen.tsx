@@ -237,7 +237,7 @@ const SearchScreen = ({ navigation }: any) => {
         setNoResults(false);
         
         try {
-            const url = `https://ariesmvp-9903a26b3095.herokuapp.com/api/api/search?query=${encodeURIComponent(searchQuery)}`;
+            const url = `https://ariesmvp-9903a26b3095.herokuapp.com/api/search?query=${encodeURIComponent(searchQuery)}`;
     
             const response = await fetch(url, {
                 method: 'GET',
@@ -254,9 +254,10 @@ const SearchScreen = ({ navigation }: any) => {
             }
     
             const posts = data.results.filter(isPost);
-            const users = data.results.filter(item => !isPost(item));
+            const users = data.results.filter((item: any) => !isPost(item));
             
             setResults({ posts, users });
+            console.log('Search results:', data.results);
             setNoResults(posts.length === 0 && users.length === 0);
     
         } catch (error) {
@@ -284,10 +285,16 @@ const SearchScreen = ({ navigation }: any) => {
     };
 
     const handleResultPress = (item) => {
+        console.log('Result pressed:', item);
         if (isPost(item)) {
             navigation.navigate('PostDetail', { postId: item.id });
         } else {
-            navigation.navigate('UserProfile', { userId: item.id });
+            if (item.username) {
+                navigation.navigate('UsersProfile', { userName: item.username });
+            } else {
+                console.error('Username is undefined:', item);
+                Alert.alert('Error', 'Username is undefined. Please try again.');
+            }
         }
     };
 
@@ -376,7 +383,6 @@ const SearchScreen = ({ navigation }: any) => {
             <>
                 {users.length > 0 && (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Users</Text>
                         <FlatList
                             data={users}
                             renderItem={renderUserItem}
@@ -387,7 +393,6 @@ const SearchScreen = ({ navigation }: any) => {
                 )}
                 {posts.length > 0 && (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Posts</Text>
                         <FlatList
                             data={posts}
                             renderItem={renderPostItem}
@@ -621,14 +626,16 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     hireButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: 'white',
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderRadius: 20,
+        borderRadius: 10,
+        borderColor: 'black',
+        borderWidth: 1,
         marginLeft: 'auto',
     },
     hireButtonText: {
-        color: '#fff',
+        color: 'black',
         fontWeight: '600',
         fontSize: 14,
     },

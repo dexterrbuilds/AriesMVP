@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Keyboard,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -18,21 +19,19 @@ import { Video } from "expo-av";
 import { useUser } from '@/contexts/UserContext';
 import { useFocusEffect } from '@react-navigation/native';
 import BottomNav from "@/components/BottomNav";
+import * as FileSystem from 'expo-file-system';
 
 interface PostData {
   user_id: string;
   text_content?: string;
-  media_link?: string;
-  media_thumbnail?: string;
-  media_type: "text" | "image" | "video";
   visibility: "public" | "followers";
 }
 
-export default function PostScreen({ navigation }) {
+export default function PostScreen({ navigation }: any) {
   const { user, access_token } = useUser();
   const [textContent, setTextContent] = useState("");
   const [mediaType, setMediaType] = useState<"text" | "image" | "video" | null>(null);
-  const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<string | null>(null);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<"public" | "followers">("public");
   const [isPosting, setIsPosting] = useState(false);
@@ -77,14 +76,13 @@ export default function PostScreen({ navigation }) {
         mediaTypes: type === "image"
           ? ImagePicker.MediaTypeOptions.Images
           : ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // Changed to false to prevent cropping
         quality: 0.8,
       });
 
       if (!result.canceled) {
         setMediaType(type);
-        setMediaUri(result.assets[0].uri);
+        setMediaFile(result.assets[0].uri);
 
         if (type === "video") {
           // In a real app, you'd generate/request a thumbnail here
@@ -99,30 +97,29 @@ export default function PostScreen({ navigation }) {
 
   const removeMedia = () => {
     setMediaType(null);
-    setMediaUri(null);
+    setMediaFile(null);
     setThumbnailUri(null);
   };
 
   const validatePost = () => {
-    if (!textContent && !mediaUri) {
+    if (!textContent && !mediaFile) {
       Alert.alert("Error", "Please enter text or select media.");
       return false;
     }
     return true;
   };
 
-  const preparePostData = (): PostData => {
-    const payload: PostData = {
-      user_id: user?.id,
-      media_type: mediaType ?? "text",
-      visibility,
+  const getFileInfo = async (fileUri: string) => {
+    const fileInfo = await FileSystem.getInfoAsync(fileUri);
+    const fileNameMatch = fileUri.match(/([^/]+)$/);
+    const fileName = fileNameMatch ? fileNameMatch[1] : 'file';
+    
+    return {
+      uri: fileUri,
+      name: fileName,
+      type: mediaType === 'image' ? 'image/jpeg' : 'video/mp4',
+      size: fileInfo.size
     };
-
-    if (textContent) payload.text_content = textContent;
-    if (mediaUri) payload.media_link = mediaUri;
-    if (thumbnailUri) payload.media_thumbnail = thumbnailUri;
-
-    return payload;
   };
 
   const handleSubmit = async () => {
@@ -132,15 +129,38 @@ export default function PostScreen({ navigation }) {
     Keyboard.dismiss();
     
     try {
-      const payload = preparePostData();
+      // Create FormData object for multipart/form-data submission
+      const formData = new FormData();
       
-      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/api/post", {
+      // Add text fields
+      formData.append('user_id', user?.id);
+      formData.append('visibility', visibility);
+      
+      if (textContent) {
+        formData.append('text_content', textContent);
+      }
+      
+      // Add media file if present
+      if (mediaFile) {
+        formData.append('media_type', mediaType);
+        
+        const fileInfo = await getFileInfo(mediaFile);
+        formData.append('media_file', fileInfo as any);
+        
+        if (thumbnailUri) {
+          const thumbnailInfo = await getFileInfo(thumbnailUri);
+          formData.append('media_thumbnail', thumbnailInfo as any);
+        }
+      }
+      
+      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/post", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${access_token}`
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${access_token}`
         },
-        body: JSON.stringify(payload),
+        body: formData
       });
 
       if (response.ok) {
@@ -170,7 +190,7 @@ export default function PostScreen({ navigation }) {
   const resetForm = () => {
     setTextContent("");
     setMediaType(null);
-    setMediaUri(null);
+    setMediaFile(null);
     setThumbnailUri(null);
     setCharacterCount(0);
   };
@@ -224,15 +244,15 @@ export default function PostScreen({ navigation }) {
           {characterCount}/{MAX_CHARS}
         </Text>
 
-        {mediaUri && (
+        {mediaFile && (
           <View style={styles.mediaPreviewContainer}>
             {mediaType === "image" && (
-              <Image source={{ uri: mediaUri }} style={styles.mediaPreview} />
+              <Image source={{ uri: mediaFile }} style={styles.mediaPreview} />
             )}
 
             {mediaType === "video" && (
               <Video 
-                source={{ uri: mediaUri }} 
+                source={{ uri: mediaFile }} 
                 style={styles.mediaPreview} 
                 useNativeControls 
                 resizeMode="contain"
@@ -260,10 +280,10 @@ export default function PostScreen({ navigation }) {
         <TouchableOpacity 
           style={[
             styles.postButton, 
-            (!textContent && !mediaUri) ? styles.postButtonDisabled : null
+            (!textContent && !mediaFile) ? styles.postButtonDisabled : null
           ]} 
           onPress={handleSubmit}
-          disabled={isPosting || (!textContent && !mediaUri)}
+          disabled={isPosting || (!textContent && !mediaFile)}
         >
           {isPosting ? (
             <ActivityIndicator color="#fff" />

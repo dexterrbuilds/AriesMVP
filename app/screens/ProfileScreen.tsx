@@ -1,55 +1,72 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Platform, Dimensions, FlatList } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { useUser } from '@/contexts/UserContext';
+import { Ionicons } from '@expo/vector-icons';
 import BottomNav from '@/components/BottomNav';
+import { useUser } from '@/contexts/UserContext';
 import axios from 'axios';
-import { Feather } from '@expo/vector-icons'; // Import icons
-
-// Define types for better type safety
-interface ProfileData {
-  username: string;
-  followers: number;
-  following: number;
-  likes: string[];
-  bio?: string;
-  profileImage?: string;
-}
 
 const Tab = createMaterialTopTabNavigator();
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Define a consistent header height
+const HEADER_HEIGHT = 270;
+const STICKY_HEADER_HEIGHT = 60;
+const TAB_BAR_HEIGHT = 48;
 
 const ProfileScreen = ({ navigation }: any) => {
   const { user, access_token } = useUser();
-  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  const fetchProfileData = async () => {
-    try {
-      const response = await axios.get(
-        `https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/${user?.username}`,
-        {
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/${user?.username}`, {
           headers: {
             Authorization: `Bearer ${access_token}`
           }
+        });
+        setProfileData(response.data);
+        // Check if user is following this profile
+        if (response.data?.isFollowing) {
+          setIsFollowing(true);
         }
-      );
-      setProfileData(response.data);
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(() => {
     fetchProfileData();
   }, [user?.username, access_token]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchProfileData();
+  useEffect(() => {
+    if (profileData) {
+      console.log('Profile data posts:', profileData.posts);
+    }
+  }, [profileData]);
+
+  const toggleFollow = async () => {
+    try {
+      // Call your follow/unfollow API
+      const endpoint = isFollowing 
+        ? `https://ariesmvp-9903a26b3095.herokuapp.com/api/unfollow/${user?.username}`
+        : `https://ariesmvp-9903a26b3095.herokuapp.com/api/follow/${user?.username}`;
+      
+      await axios.post(endpoint, {}, {
+        headers: {
+          Authorization: `Bearer ${access_token}`
+        }
+      });
+      
+      setIsFollowing(!isFollowing);
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+    }
   };
 
   if (loading) {
@@ -60,214 +77,390 @@ const ProfileScreen = ({ navigation }: any) => {
     );
   }
 
-  const profileImage = profileData?.profileImage 
-    ? { uri: profileData.profileImage } 
-    : require('../assets/images/pfp.png');
+  // Animation value for header opacity
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_HEIGHT - STICKY_HEADER_HEIGHT],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Animation value for sticky header
+  const stickyHeaderOpacity = scrollY.interpolate({
+    inputRange: [HEADER_HEIGHT - STICKY_HEADER_HEIGHT - 20, HEADER_HEIGHT - STICKY_HEADER_HEIGHT],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  // Animation for tab bar position
+  const tabBarTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_HEIGHT - TAB_BAR_HEIGHT],
+    outputRange: [0, -(HEADER_HEIGHT - TAB_BAR_HEIGHT)],
+    extrapolate: 'clamp',
+  });
+
+  // Create the tab content components
+  const renderTabs = () => {
+    const PostsTab = () => {
+      if (!profileData || !profileData.posts || profileData.posts.length === 0) {
+        return (
+          <View style={styles.noContentContainer}>
+            <Text>No posts available</Text>
+          </View>
+        );
+      }
+
+      const renderPostItem = ({ item }: { item: any }) => {
+        const postDate = new Date(item.created_at);
+        const formattedDate = postDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+
+        return (
+          <View style={styles.postItem}>
+            <View style={styles.postHeader}>
+              <Image
+                source={{ uri: profileData.avatar || 'https://via.placeholder.com/40' }}
+                style={styles.postAvatar}
+              />
+              <View style={styles.postHeaderText}>
+                <Text style={styles.postUsername}>{profileData.username}</Text>
+                <Text style={styles.postDate}>{formattedDate}</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.postBody}>{item.body}</Text>
+            
+            {item.media_type === 'image' && item.media_link && (
+              <Image
+                source={{ uri: item.media_link }}
+                style={styles.postImage}
+                resizeMode="cover"
+              />
+            )}
+            
+            <View style={styles.postActions}>
+              <TouchableOpacity style={styles.postAction}>
+                <Ionicons name="heart-outline" size={22} color="#657786" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.postAction}>
+                <Ionicons name="chatbubble-outline" size={22} color="#657786" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.postAction}>
+                <Ionicons name="share-outline" size={22} color="#657786" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      };
+
+      return (
+        <View style={styles.tabContent}>
+          <FlatList
+            data={profileData.posts}
+            keyExtractor={(item, index) => `post-${item.id || index}`}
+            renderItem={renderPostItem}
+            contentContainerStyle={styles.postsListContent}
+            showsVerticalScrollIndicator={true}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+          />
+        </View>
+      );
+    };
+
+    const CoursesTab = () => (
+      <View style={styles.tabContent}>
+        <FlatList
+          data={[{ id: '1', title: 'Course 1' }, { id: '2', title: 'Course 2' }]}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.tabItemContainer}>
+              <Text>{item.title}</Text>
+            </View>
+          )}
+          contentContainerStyle={styles.genericListContent}
+        />
+      </View>
+    );
+    
+    const ReadlistsTab = () => (
+      <View style={styles.tabContent}>
+        <FlatList
+          data={[{ id: '1', title: 'Readlist 1' }, { id: '2', title: 'Readlist 2' }]}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.tabItemContainer}>
+              <Text>{item.title}</Text>
+            </View>
+          )}
+          contentContainerStyle={styles.genericListContent}
+        />
+      </View>
+    );
+
+    return (
+      <Tab.Navigator
+        style={styles.tabNavigator}
+        screenOptions={{
+          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarStyle: styles.tabBar,
+          tabBarIndicatorStyle: styles.tabBarIndicator,
+          lazy: false, // Making sure all tabs are rendered
+        }}
+      >
+        <Tab.Screen name="Posts" component={PostsTab} />
+        <Tab.Screen name="Courses" component={CoursesTab} />
+        <Tab.Screen name="Readlists" component={ReadlistsTab} />
+      </Tab.Navigator>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header with Back and Settings buttons */}
-      <View style={styles.navigationHeader}>
+      {/* Sticky header - shows when scrolled */}
+      <Animated.View
+        style={[
+          styles.stickyHeader,
+          { 
+            opacity: stickyHeaderOpacity,
+            zIndex: 1000
+          }
+        ]}
+      >
         <TouchableOpacity 
-          style={styles.backButton} 
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Feather name="arrow-left" size={24} color="black" />
+          <Ionicons name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Feather name="settings" size={24} color="black" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        <Text style={styles.stickyHeaderText}>{profileData?.username}</Text>
+      </Animated.View>
+      
+      {/* Main profile header */}
+      <Animated.View 
+        style={[
+          styles.profileHeader,
+          { 
+            opacity: headerOpacity,
+            transform: [{ 
+              translateY: scrollY.interpolate({
+                inputRange: [0, HEADER_HEIGHT],
+                outputRange: [0, -HEADER_HEIGHT],
+                extrapolate: 'clamp',
+              }) 
+            }],
+            zIndex: 10
+          }
+        ]}
       >
-        <ProfileHeader 
-          username={profileData?.username || ''} 
-          profileImage={profileImage}
-          bio={profileData?.bio || 'Developer | Educator | Learner'}
-        />
-
-        <ProfileStats 
-          followers={profileData?.followers || 0}
-          following={profileData?.following || 0}
-          points={profileData?.likes.length || 0}
-        />
-
-        <TouchableOpacity 
-          style={styles.editButton}
-          onPress={() => navigation.navigate('EditProfile', { profileData })}
-        >
-          <Text style={styles.editButtonText}>Edit Profile</Text>
-        </TouchableOpacity>
-
-        <View style={styles.tabContainer}>
-          <Tab.Navigator
-            screenOptions={{
-              tabBarLabelStyle: styles.tabBarLabel,
-              tabBarStyle: styles.tabBar,
-              tabBarIndicatorStyle: styles.tabBarIndicator,
-            }}
-          >
-            <Tab.Screen name="Courses" component={CoursesTab} />
-            <Tab.Screen name="Links" component={LinksTab} />
-            <Tab.Screen name="Readlists" component={ReadlistsTab} />
-          </Tab.Navigator>
+        {/* Profile content */}
+        <View style={styles.profileTopRow}>
+          <Image
+            source={{ uri: profileData?.avatar || 'https://via.placeholder.com/100' }}
+            style={styles.profilePicture}
+          />
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={() => navigation.navigate('Conversation', { userName: profileData?.username })}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
 
-      <BottomNav navigation={navigation}/>
+        <Text style={styles.name}>{profileData?.full_name || profileData?.username}</Text>
+        <Text style={styles.username}>@{profileData?.username}</Text>
+        <Text style={styles.bio}>{profileData?.bio || 'Developer | Educator | Learner'}</Text>
+        <Text style={styles.role}>{profileData?.role || 'Content Creator'}</Text>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{profileData?.following || 0}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{profileData?.followers || 0}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{profileData?.likes?.length || 0}</Text>
+            <Text style={styles.statLabel}>Points</Text>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* Main content area - tabs and their content */}
+      <Animated.View 
+        style={[
+          styles.mainContentContainer,
+          {
+            transform: [{ translateY: tabBarTranslateY }],
+            paddingTop: HEADER_HEIGHT,
+          }
+        ]}
+      >
+        {renderTabs()}
+      </Animated.View>
+
+      {/* Transparent scroll view to drive animations */}
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        style={styles.scrollViewDriver}
+      >
+        {/* Empty space to allow scrolling */}
+        <View style={{ height: SCREEN_HEIGHT * 2 }} />
+      </Animated.ScrollView>
+
+      {/* Bottom navigation */}
+      <View style={styles.bottomnav}>
+        <BottomNav navigation={navigation} user={user} />
+      </View>
     </View>
   );
 };
-
-const ProfileHeader = ({ username, profileImage, bio }: { username: string, profileImage: any, bio: string }) => (
-  <View style={styles.header}>
-    <Text style={styles.name}>{username}</Text>
-    <Image source={profileImage} style={styles.profilePicture} />
-    <Text style={styles.username}>@{username}</Text>
-    <Text style={styles.bio}>{bio}</Text>
-  </View>
-);
-
-const ProfileStats = ({ followers, following, points }: { followers: number, following: number, points: number }) => (
-  <View style={styles.statsContainer}>
-    <StatItem value={followers} label="Followers" />
-    <StatItem value={following} label="Following" />
-    <StatItem value={points} label="Points" />
-  </View>
-);
-
-const StatItem = ({ value, label }: { value: number, label: string }) => (
-  <TouchableOpacity style={styles.stat}>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
-  </TouchableOpacity>
-);
-
-const CoursesTab = () => (
-  <View style={styles.tabContentContainer}>
-    <Text>Courses Content</Text>
-  </View>
-);
-
-const LinksTab = () => (
-  <View style={styles.tabContentContainer}>
-    <Text>Links Content</Text>
-  </View>
-);
-
-const ReadlistsTab = () => (
-  <View style={styles.tabContentContainer}>
-    <Text>Readlists Content</Text>
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'white',
   },
-  navigationHeader: {
+  scrollViewDriver: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+    opacity: 0,
+  },
+  mainContentContainer: {
+    flex: 1,
+    backgroundColor: 'white',
+    zIndex: 5,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 15,
+    top: Platform.OS === 'ios' ? 40 : 15,
+    zIndex: 1001,
+  },
+  stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: STICKY_HEADER_HEIGHT,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingTop: Platform.OS === 'ios' ? 30 : 5,
+  },
+  stickyHeaderText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  profileHeader: {
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 30,
+    paddingBottom: 15,
+    backgroundColor: 'white',
+    height: HEADER_HEIGHT,
+    position: 'absolute',
+    width: '100%',
+  },
+  profileTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 30, // Increased to account for status bar
-    paddingBottom: 10,
-    backgroundColor: 'white',
-  },
-  backButton: {
-    padding: 8,
-  },
-  settingsButton: {
-    padding: 8,
-  },
-  scrollContainer: {
-    paddingBottom: 70, // Added more padding to account for bottom nav
-  },
-  header: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
     marginBottom: 10,
   },
-  username: {
-    fontSize: 14,
-    color: '#666',
-  },
   profilePicture: {
-    width: 80,
-    height: 80,
-    borderRadius: 50,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  messageButton: {
+    backgroundColor: 'black',
+    padding: 10,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  followButton: {
+    backgroundColor: 'black',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  followingButton: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  followButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  followingButtonText: {
+    color: 'black',
+  },
+  name: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  username: {
+    fontSize: 15,
+    color: '#657786',
     marginBottom: 10,
   },
   bio: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 5,
+    fontSize: 15,
+    marginBottom: 5,
+  },
+  role: {
+    fontSize: 15,
+    color: '#657786',
+    marginBottom: 15,
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 40,
-    backgroundColor: '#fff',
-    paddingVertical: 10,
+    marginTop: 5,
   },
   stat: {
-    alignItems: 'center',
-    padding: 10,
+    flexDirection: 'row',
+    marginRight: 20,
   },
   statValue: {
-    fontSize: 15,
     fontWeight: 'bold',
+    marginRight: 5,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#666',
+    color: '#657786',
   },
-  editButton: {
-    backgroundColor: 'black',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginVertical: 10,
-    width: '80%',
-  },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  tabContainer: {
+  tabNavigator: {
     flex: 1,
-    height: 400, // Fixed height to ensure tabs are visible
-  },
-  tabContentContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'white',
   },
   tabBar: {
     backgroundColor: '#ffffff',
     elevation: 0,
     shadowOpacity: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#f0f0f0',
   },
   tabBarLabel: {
     fontSize: 16,
@@ -279,10 +472,94 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     height: 3,
   },
+  tabContent: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  tabItemContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  postsListContent: {
+    paddingBottom: 80, // Extra padding to account for bottom nav
+  },
+  genericListContent: {
+    paddingBottom: 80, // Extra padding to account for bottom nav
+  },
+  bottomnav: {
+    backgroundColor: 'white',
+    borderStyle: 'solid',
+    borderTopWidth: 1,
+    borderTopColor: '#808080',
+    height: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  noContentContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  // Post item styles
+  postItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: 'white',
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  postAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  postHeaderText: {
+    flex: 1,
+  },
+  postUsername: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  postDate: {
+    color: '#657786',
+    fontSize: 12,
+  },
+  postBody: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  postActions: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  postAction: {
+    marginRight: 24,
   },
 });
 
