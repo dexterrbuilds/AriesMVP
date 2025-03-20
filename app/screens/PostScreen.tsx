@@ -11,9 +11,12 @@ import {
   ScrollView,
   Keyboard,
   TouchableWithoutFeedback,
-  Platform
+  Platform,
+  Modal,
+  Animated,
+  Dimensions
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Video } from "expo-av";
 import { useUser } from '@/contexts/UserContext';
@@ -27,6 +30,94 @@ interface PostData {
   visibility: "public" | "followers";
 }
 
+interface CustomAlertProps {
+  visible: boolean;
+  title: string;
+  message: string;
+  duration?: number; // Auto-dismiss duration in ms
+  onClose: () => void;
+}
+
+const CustomAlert: React.FC<CustomAlertProps> = ({
+  visible,
+  title,
+  message,
+  duration = 2000, // Default 2 seconds
+  onClose
+}) => {
+  const [animation] = useState(new Animated.Value(0));
+  const { width } = Dimensions.get('window');
+  
+  React.useEffect(() => {
+    if (visible) {
+      // Slide in animation
+      Animated.spring(animation, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 8
+      }).start();
+      
+      // Auto dismiss after duration
+      const timer = setTimeout(() => {
+        dismiss();
+      }, duration);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+  
+  const dismiss = () => {
+    Animated.timing(animation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true
+    }).start(() => {
+      onClose();
+    });
+  };
+
+  const translateY = animation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-100, 0]
+  });
+  
+  const opacity = animation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1]
+  });
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+    >
+      <Animated.View 
+        style={[
+          styles.alertContainer,
+          { 
+            transform: [{ translateY }],
+            opacity,
+            width: width * 0.9
+          }
+        ]}
+      >
+        <View style={styles.iconContainer}>
+          <MaterialIcons name="check-circle" size={24} color="#2E7D32" />
+        </View>
+        
+        <View style={styles.textContainer}>
+          <Text style={styles.alertTitle}>{title}</Text>
+          <Text style={styles.alertMessage}>{message}</Text>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+};
+
 export default function PostScreen({ navigation }: any) {
   const { user, access_token } = useUser();
   const [textContent, setTextContent] = useState("");
@@ -37,6 +128,11 @@ export default function PostScreen({ navigation }: any) {
   const [isPosting, setIsPosting] = useState(false);
   const [characterCount, setCharacterCount] = useState(0);
   const MAX_CHARS = 500;
+  
+  // Custom alert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState("");
+  const [alertMessage, setAlertMessage] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -57,14 +153,20 @@ export default function PostScreen({ navigation }: any) {
   const checkMediaPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(
-        "Permission Required",
-        "Please grant media library permissions to upload photos and videos.",
-        [{ text: "OK" }]
-      );
+      showAlert("Permission Required", "Please grant media library permissions to upload photos and videos.");
       return false;
     }
     return true;
+  };
+
+  const showAlert = (title: string, message: string) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertVisible(true);
+  };
+
+  const hideAlert = () => {
+    setAlertVisible(false);
   };
 
   const pickMedia = async (type: "image" | "video") => {
@@ -91,7 +193,7 @@ export default function PostScreen({ navigation }: any) {
       }
     } catch (error) {
       console.error("Error picking media:", error);
-      Alert.alert("Error", "Failed to select media. Please try again.");
+      showAlert("Error", "Failed to select media. Please try again.");
     }
   };
 
@@ -103,7 +205,7 @@ export default function PostScreen({ navigation }: any) {
 
   const validatePost = () => {
     if (!textContent && !mediaFile) {
-      Alert.alert("Error", "Please enter text or select media.");
+      showAlert("Error", "Please enter text or select media.");
       return false;
     }
     return true;
@@ -164,24 +266,21 @@ export default function PostScreen({ navigation }: any) {
       });
 
       if (response.ok) {
-        Alert.alert(
-          "Success", 
-          "Post uploaded successfully!",
-          [{ 
-            text: "OK", 
-            onPress: () => {
-              resetForm();
-              navigation.navigate('Feed');
-            }
-          }]
-        );
+        // Show custom alert instead of native Alert
+        showAlert("Success", "Post uploaded successfully!");
+        
+        // Reset form and navigate after alert is dismissed
+        setTimeout(() => {
+          resetForm();
+          navigation.navigate('Feed');
+        }, 0); // Matches default alert display time
       } else {
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to upload post.");
       }
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert("Error", error.message || "Failed to upload post.");
+      showAlert("Error", error.message || "Failed to upload post.");
     } finally {
       setIsPosting(false);
     }
@@ -198,6 +297,14 @@ export default function PostScreen({ navigation }: any) {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+        {/* Custom Alert */}
+        <CustomAlert 
+          visible={alertVisible}
+          title={alertTitle}
+          message={alertMessage}
+          onClose={hideAlert}
+        />
+        
         <View style={styles.headerContainer}>
           <Text style={styles.header}>Create a Post</Text>
           <TouchableOpacity style={styles.cancelButton} onPress={resetForm}>
@@ -435,4 +542,38 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
+  // Custom Alert styles
+  alertContainer: {
+    position: 'absolute',
+    top: 40,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(232, 245, 233, 0.95)', // Slightly transparent green
+    borderRadius: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#2E7D32' // Deep green border
+  },
+  iconContainer: {
+    marginRight: 12
+  },
+  textContainer: {
+    flex: 1
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1B5E20', // Dark green text
+    marginBottom: 2
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: '#2E7D32', // Green text
+  }
 });
