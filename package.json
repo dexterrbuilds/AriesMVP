@@ -22,7 +22,7 @@
     "@react-navigation/native": "^7.0.14",
     "@types/lodash": "^4.17.15",
     "axios": "^1.7.9",
-    "expo": "latest",
+    "expo": "^52.0.0",
     "expo-av": "~15.0.2",
     "expo-blur": "~14.0.3",
     "expo-cli": "^6.3.12",
@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native-community/cli-server-api": "^17.0.0",
     "@types/jest": "^29.5.12",
     "@types/react": "~18.3.12",
     "@types/react-native-vector-icons": "^6.4.18",
