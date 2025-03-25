@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, RefreshControl, Linking, Platform } from "react-native";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  Image, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  RefreshControl, 
+  Linking, 
+  Platform 
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import BottomNav from "@/components/BottomNav";
 import { useUser } from '@/contexts/UserContext';
@@ -138,163 +149,168 @@ const TextWithLinks = ({ text }) => {
   );
 };
 
-export default function FeedScreen({route, navigation }: any) {
-    const { user, access_token } = useUser();
-    const [activeTab, setActiveTab] = useState("For You");
-    const [posts, setPosts] = useState<any[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [refreshing, setRefreshing] = useState<boolean>(false);
-    const [likedPosts, setLikedPosts] = useState<number[]>([]);
-    const isFocused = useIsFocused();
+export default function FeedScreen({ route, navigation }) {
+  const { user, access_token } = useUser();
+  const [activeTab, setActiveTab] = useState("For You");
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [likedPosts, setLikedPosts] = useState([]);
+  const isFocused = useIsFocused();
 
-    const fetchPosts = async (showLoader = true) => {
-      if (showLoader) setLoading(true);
-      try {
-        const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/feed", {
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-            'Content-Type': 'application/json',
-          },
+  const fetchPosts = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    try {
+      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/feed", {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Feed error:", errorData);
+        throw new Error(`API error: ${errorData.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      console.log("Fetched posts successfully");
+      
+      // Process posts to identify URLs
+      const processedPosts = data.posts ? data.posts.map(post => ({
+        ...post,
+        urls: findUrls(post.body),
+        hasOnlyTextAndLink: post.body && !post.media_link && findUrls(post.body).length > 0
+      })) : [];
+      
+      setPosts(processedPosts);
+      
+      // Initialize liked posts based on response data
+      if (data.posts && Array.isArray(data.posts)) {
+        const initialLikedPosts = data.posts
+          .filter(post => post.is_liked)
+          .map(post => post.id);
+        setLikedPosts(initialLikedPosts);
+      }
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchPosts();
+    }
+  }, [isFocused, access_token]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchPosts(false);
+  };
+
+  const handleLike = async (postId) => {
+    try {
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/like`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        // Toggle the liked status locally
+        setLikedPosts(prevLikedPosts => {
+          if (prevLikedPosts.includes(postId)) {
+            return prevLikedPosts.filter(id => id !== postId);
+          } else {
+            return [...prevLikedPosts, postId];
+          }
         });
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("Feed error:", errorData);
-          throw new Error(`API error: ${errorData.message || 'Unknown error'}`);
-        }
-
-        const data = await response.json();
-        console.log("Fetched posts successfully");
-        
-        // Process posts to identify URLs
-        const processedPosts = data.posts ? data.posts.map(post => ({
-          ...post,
-          urls: findUrls(post.body),
-          hasOnlyTextAndLink: post.body && !post.media_link && findUrls(post.body).length > 0
-        })) : [];
-        
-        setPosts(processedPosts);
-        
-        // Initialize liked posts based on response data
-        if (data.posts && Array.isArray(data.posts)) {
-          const initialLikedPosts = data.posts
-            .filter(post => post.is_liked)
-            .map(post => post.id);
-          setLikedPosts(initialLikedPosts);
-        }
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    };
-
-    useEffect(() => {
-      if (isFocused) {
-        fetchPosts();
-      }
-    }, [isFocused, access_token]);
-  
-    const handleRefresh = () => {
-      setRefreshing(true);
-      fetchPosts(false);
-    };
-
-    const handleLike = async (postId: number) => {
-      try {
-        const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/like`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (response.ok) {
-          // Toggle the liked status locally
-          setLikedPosts(prevLikedPosts => {
-            if (prevLikedPosts.includes(postId)) {
-              return prevLikedPosts.filter(id => id !== postId);
-            } else {
-              return [...prevLikedPosts, postId];
+        // Update the liked count in the posts array
+        setPosts(prevPosts => {
+          return prevPosts.map(post => {
+            if (post.id === postId) {
+              const isAlreadyLiked = likedPosts.includes(postId);
+              const likesCount = isAlreadyLiked ? 
+                (post.likes_count > 0 ? post.likes_count - 1 : 0) : 
+                ((post.likes_count || 0) + 1);
+              return {
+                ...post,
+                likes_count: likesCount
+              };
             }
+            return post;
           });
-          
-          // Update the liked count in the posts array
-          setPosts(prevPosts => {
-            return prevPosts.map(post => {
-              if (post.id === postId) {
-                const isAlreadyLiked = likedPosts.includes(postId);
-                const likesCount = isAlreadyLiked ? 
-                  (post.likes_count > 0 ? post.likes_count - 1 : 0) : 
-                  ((post.likes_count || 0) + 1);
-                return {
-                  ...post,
-                  likes_count: likesCount
-                };
-              }
-              return post;
-            });
-          });
-        } else {
-          const errorData = await response.json();
-          console.error("Like error:", errorData);
-        }
-      } catch (error) {
-        console.error("Error liking post:", error);
+        });
+      } else {
+        const errorData = await response.json();
+        console.error("Like error:", errorData);
       }
-    };
-  
-    const liveEducators = [
-      { id: "1", name: "Dexterr", avatar: "https://via.placeholder.com/60" },
-      { id: "2", name: "Pompey", avatar: "https://via.placeholder.com/60" },
-      { id: "3", name: "Louis", avatar: "https://via.placeholder.com/60" },
-      { id: "4", name: "John", avatar: "https://via.placeholder.com/60" },
-      { id: "5", name: "Chris", avatar: "https://via.placeholder.com/60" },
-      { id: "6", name: "Alex", avatar: "https://via.placeholder.com/60" },
-    ];
-  
-    const banners = [
-      { id: "1", image: "https://via.placeholder.com/300x100" },
-      { id: "2", image: "https://via.placeholder.com/300x100" },
-      { id: "3", image: "https://via.placeholder.com/300x100" },
-    ];
-  
-    const coursePosts = [
-      { 
-        id: 1001, 
-        user: { username: "edu_mentor", first_name: "Edu", last_name: "Mentor", role: "Mentor", avatar: "https://via.placeholder.com/60" }, 
-        body: "New course: Blockchain Basics https://edu-platform.com/courses/blockchain-101", 
-        media_link: "https://via.placeholder.com/300x200", 
-        likes_count: 12,
-        urls: ["https://edu-platform.com/courses/blockchain-101"],
-        hasOnlyTextAndLink: false
-      },
-      { 
-        id: 1002, 
-        user: { username: "learn_hub", first_name: "Learn", last_name: "Hub", role: "Instructor", avatar: "https://via.placeholder.com/60" }, 
-        body: "Advanced Solidity programming now available! Check it out: https://edu-platform.com/courses/solidity-advanced", 
-        likes_count: 8,
-        urls: ["https://edu-platform.com/courses/solidity-advanced"],
-        hasOnlyTextAndLink: true
-      },
-    ];
-  
-    const activeContent = activeTab === "For You" ? posts : coursePosts;
-  
-    return (
-      <View style={styles.container}>
-        {/* Top Bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-            <Ionicons name="person-circle" size={30} color="black" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Welcome, {user?.first_name}!</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-            <Ionicons name="notifications" size={30} color="black" />
-          </TouchableOpacity>
-        </View>
+    } catch (error) {
+      console.error("Error liking post:", error);
+    }
+  };
+
+  // Navigate to PostDetails when the post container is clicked
+  const navigateToPostDetails = (post) => {
+    navigation.navigate("PostDetails", { post });
+  };
+
+  const liveEducators = [
+    { id: "1", name: "Dexterr", avatar: "https://via.placeholder.com/60" },
+    { id: "2", name: "Pompey", avatar: "https://via.placeholder.com/60" },
+    { id: "3", name: "Louis", avatar: "https://via.placeholder.com/60" },
+    { id: "4", name: "John", avatar: "https://via.placeholder.com/60" },
+    { id: "5", name: "Chris", avatar: "https://via.placeholder.com/60" },
+    { id: "6", name: "Alex", avatar: "https://via.placeholder.com/60" },
+  ];
+
+  const banners = [
+    { id: "1", image: "https://via.placeholder.com/300x100" },
+    { id: "2", image: "https://via.placeholder.com/300x100" },
+    { id: "3", image: "https://via.placeholder.com/300x100" },
+  ];
+
+  const coursePosts = [
+    { 
+      id: 1001, 
+      user: { username: "edu_mentor", first_name: "Edu", last_name: "Mentor", role: "Mentor", avatar: "https://via.placeholder.com/60" }, 
+      body: "New course: Blockchain Basics https://edu-platform.com/courses/blockchain-101", 
+      media_link: "https://via.placeholder.com/300x200", 
+      likes_count: 12,
+      urls: ["https://edu-platform.com/courses/blockchain-101"],
+      hasOnlyTextAndLink: false
+    },
+    { 
+      id: 1002, 
+      user: { username: "learn_hub", first_name: "Learn", last_name: "Hub", role: "Instructor", avatar: "https://via.placeholder.com/60" }, 
+      body: "Advanced Solidity programming now available! Check it out: https://edu-platform.com/courses/solidity-advanced", 
+      likes_count: 8,
+      urls: ["https://edu-platform.com/courses/solidity-advanced"],
+      hasOnlyTextAndLink: true
+    },
+  ];
+
+  const activeContent = activeTab === "For You" ? posts : coursePosts;
+
+  return (
+    <View style={styles.container}>
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
+          <Ionicons name="person-circle" size={30} color="black" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Welcome, {user?.first_name}!</Text>
+        <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
+          <Ionicons name="notifications" size={30} color="black" />
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -353,17 +369,29 @@ export default function FeedScreen({route, navigation }: any) {
               {activeContent.map((post) => {
                 const isLiked = likedPosts.includes(post.id);
                 return (
-                  <View key={post.id} style={styles.postContainer}>
+                  <TouchableOpacity 
+                    key={post.id} 
+                    style={styles.postContainer}
+                    onPress={() => navigateToPostDetails(post)}
+                  >
                     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                      <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: post.user.username })}>
+                      <TouchableOpacity 
+                        onPress={(e) => {
+                          e.stopPropagation(); // Prevent triggering the parent onPress
+                          navigation.navigate("UsersProfile", { userName: post.user.username });
+                        }}
+                      >
                         <View>
-                          <Image source={{uri: post.user.avatar || 'https://via.placeholder.com/100'}} style={styles.postAvatar} />
+                          <Image 
+                            source={{uri: post.user.avatar || 'https://via.placeholder.com/100'}} 
+                            style={styles.postAvatar} 
+                          />
                         </View>
                       </TouchableOpacity>
                       <View>
-                            <Text style={styles.postAuthor}>{post.user.first_name} {post.user.last_name}</Text>
-                            <Text style={styles.userName}>@{post.user.username}</Text>
-                            <Text style={styles.postRole}>{post.user.role}</Text>
+                        <Text style={styles.postAuthor}>{post.user.first_name} {post.user.last_name}</Text>
+                        <Text style={styles.userName}>@{post.user.username}</Text>
+                        <Text style={styles.postRole}>{post.user.role}</Text>
                       </View>
                     </View>
                     
@@ -377,110 +405,127 @@ export default function FeedScreen({route, navigation }: any) {
                     
                     {/* Post image if available - make it clickable if there's a link */}
                     {post.media_link && (
-                      <TouchableOpacity onPress={() => post.urls.length > 0 ? handleOpenLink(post.urls[0]) : null}
+                      <TouchableOpacity 
+                        onPress={(e) => {
+                          e.stopPropagation(); // Prevent triggering the parent onPress
+                          post.urls.length > 0 ? handleOpenLink(post.urls[0]) : null;
+                        }}
                       >
-                       <Image 
-                         source={{ uri: post.media_link }} 
-                         style={styles.postImage} 
-                         resizeMode="cover"
-                       />
+                        <Image 
+                          source={{ uri: post.media_link }} 
+                          style={styles.postImage} 
+                          resizeMode="cover"
+                        />
                       </TouchableOpacity>
-                      )}
+                    )}
                       
-                      <View style={styles.actionButtons}>
-                       <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(post.id)}>
-                         <Ionicons 
-                           name={isLiked ? "heart" : "heart-outline"} 
-                           size={24} 
-                           color={isLiked ? "#ff4757" : "#666"} 
-                         />
-                         <Text style={[styles.actionText, isLiked && {color: '#ff4757'}]}>
-                           {post.likes_count > 0 ? `${post.likes_count}` : ''} Like{post.likes_count !== 1 ? 's' : ''}
-                         </Text>
-                       </TouchableOpacity>
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity 
+                        style={styles.actionButton} 
+                        onPress={(e) => {
+                          e.stopPropagation(); // Prevent triggering the parent onPress
+                          handleLike(post.id);
+                        }}
+                      >
+                        <Ionicons 
+                          name={isLiked ? "heart" : "heart-outline"} 
+                          size={24} 
+                          color={isLiked ? "#ff4757" : "#666"} 
+                        />
+                        <Text style={[styles.actionText, isLiked && {color: '#ff4757'}]}>
+                          {post.likes_count > 0 ? `${post.likes_count}` : ''} Like{post.likes_count !== 1 ? 's' : ''}
+                        </Text>
+                      </TouchableOpacity>
                        
-                       <TouchableOpacity 
-                         style={styles.actionButton} 
-                         onPress={() => navigation.navigate("Comments", { 
-                           postId: post.id,
-                           post: post // Pass the entire post object
-                         })}
-                       >
-                         <Ionicons name="chatbubble-outline" size={24} color="#666" />
-                         <Text style={styles.actionText}>
-                           {post.comments_count > 0 ? `${post.comments_count}` : ''} Comment{post.comments_count !== 1 ? 's' : ''}
-                         </Text>
-                       </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.actionButton} 
+                        onPress={(e) => {
+                          e.stopPropagation(); // Prevent triggering the parent onPress
+                          navigation.navigate("Comments", { 
+                            postId: post.id,
+                            post: post // Pass the entire post object
+                          });
+                        }}
+                      >
+                        <Ionicons name="chatbubble-outline" size={24} color="#666" />
+                        <Text style={styles.actionText}>
+                          {post.comments_count > 0 ? `${post.comments_count}` : ''} Comment{post.comments_count !== 1 ? 's' : ''}
+                        </Text>
+                      </TouchableOpacity>
                        
-                       <TouchableOpacity style={styles.actionButton} onPress={() => {
-                         if (Platform.OS === 'ios' || Platform.OS === 'android') {
-                           const message = post.body;
-                           const url = post.urls.length > 0 ? post.urls[0] : undefined;
-                           
-                           Linking.share({
-                             title: `Shared post from ${post.user.first_name} ${post.user.last_name}`,
-                             message,
-                             url
-                           }).catch(err => console.error('Error sharing post:', err));
-                         }
-                       }}>
-                         <Ionicons name="share-social-outline" size={24} color="#666" />
-                         <Text style={styles.actionText}>Share</Text>
-                       </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity 
+                        style={styles.actionButton} 
+                        onPress={(e) => {
+                          e.stopPropagation(); // Prevent triggering the parent onPress
+                          if (Platform.OS === 'ios' || Platform.OS === 'android') {
+                            const message = post.body;
+                            const url = post.urls.length > 0 ? post.urls[0] : undefined;
+                            
+                            Linking.share({
+                              title: `Shared post from ${post.user.first_name} ${post.user.last_name}`,
+                              message,
+                              url
+                            }).catch(err => console.error('Error sharing post:', err));
+                          }
+                        }}
+                      >
+                        <Ionicons name="share-social-outline" size={24} color="#666" />
+                        <Text style={styles.actionText}>Share</Text>
+                      </TouchableOpacity>
+                    </View>
                       
-                      {/* Show interactions count (likes, comments) */}
-                      {(post.likes_count > 0 || post.comments_count > 0) && (
-                       <View style={styles.interactionSummary}>
-                         {post.likes_count > 0 && (
-                           <View style={styles.interactionItem}>
-                             <Ionicons name="heart" size={14} color="#ff4757" />
-                             <Text style={styles.interactionText}>{post.likes_count}</Text>
-                           </View>
-                         )}
-                         {post.comments_count > 0 && (
-                           <View style={styles.interactionItem}>
-                             <Ionicons name="chatbubble" size={14} color="#3366ff" />
-                             <Text style={styles.interactionText}>{post.comments_count}</Text>
-                           </View>
-                         )}
-                       </View>
-                      )}
+                    {/* Show interactions count (likes, comments) */}
+                    {(post.likes_count > 0 || post.comments_count > 0) && (
+                      <View style={styles.interactionSummary}>
+                        {post.likes_count > 0 && (
+                          <View style={styles.interactionItem}>
+                            <Ionicons name="heart" size={14} color="#ff4757" />
+                            <Text style={styles.interactionText}>{post.likes_count}</Text>
+                          </View>
+                        )}
+                        {post.comments_count > 0 && (
+                          <View style={styles.interactionItem}>
+                            <Ionicons name="chatbubble" size={14} color="#3366ff" />
+                            <Text style={styles.interactionText}>{post.comments_count}</Text>
+                          </View>
+                        )}
                       </View>
-                      );
-                      })}
-                      </View>
-                      ) : (
-                      <View style={styles.emptyContainer}>
-                       <Ionicons name="document-text-outline" size={64} color="#ccc" />
-                       <Text style={styles.emptyText}>No posts available</Text>
-                       <Text style={styles.emptySubtext}>Follow more educators to see their content here</Text>
-                       
-                       <TouchableOpacity 
-                         style={styles.emptyButton}
-                         onPress={() => navigation.navigate("Discover")}
-                       >
-                         <Text style={styles.emptyButtonText}>Discover Educators</Text>
-                       </TouchableOpacity>
-                      </View>
-                      )}
-                      </ScrollView>
-                      )}
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="document-text-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No posts available</Text>
+              <Text style={styles.emptySubtext}>Follow more educators to see their content here</Text>
+               
+              <TouchableOpacity 
+                style={styles.emptyButton}
+                onPress={() => navigation.navigate("Discover")}
+              >
+                <Text style={styles.emptyButtonText}>Discover Educators</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      )}
 
-                      <TouchableOpacity
-                        style={styles.fab}
-                        onPress={() => navigation.navigate("Post")}
-                      >
-                        <Ionicons name="add" size={28} color="white" />
-                      </TouchableOpacity>
-                      
-                      {/* Bottom Navigation */}
-                      <BottomNav navigation={navigation} />
-                      </View>
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate("Post")}
+      >
+        <Ionicons name="add" size={28} color="white" />
+      </TouchableOpacity>
+      
+      {/* Bottom Navigation */}
+      <BottomNav navigation={navigation} />
+    </View>
   );
-  }
+}
                       
-  const styles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
@@ -753,4 +798,4 @@ export default function FeedScreen({route, navigation }: any) {
     color: "#666",
     marginLeft: 4,
   }
-  });
+});

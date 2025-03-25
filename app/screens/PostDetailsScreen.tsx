@@ -9,19 +9,110 @@ import {
   ActivityIndicator, 
   TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Linking,
+  Alert
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from '@/contexts/UserContext';
 
 // Function to detect URLs in text
 const findUrls = (text) => {
+  if (!text) return [];
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   return text.match(urlRegex) || [];
 };
 
+// Component for displaying text with clickable links
+const TextWithLinks = ({ text }) => {
+  if (!text) return null;
+  
+  // Find URLs in the text
+  const urls = findUrls(text);
+  
+  // If no URLs, return plain text
+  if (urls.length === 0) {
+    return <Text style={styles.postText}>{text}</Text>;
+  }
+  
+  // Split text by URLs
+  let lastIndex = 0;
+  const textParts = [];
+  
+  urls.forEach((url, index) => {
+    const urlIndex = text.indexOf(url, lastIndex);
+    
+    // Add text before URL
+    if (urlIndex > lastIndex) {
+      textParts.push({
+        type: 'text',
+        content: text.substring(lastIndex, urlIndex),
+        key: `text_${index}`
+      });
+    }
+    
+    // Add URL
+    textParts.push({
+      type: 'url',
+      content: url,
+      key: `url_${index}`
+    });
+    
+    lastIndex = urlIndex + url.length;
+  });
+  
+  // Add remaining text after last URL
+  if (lastIndex < text.length) {
+    textParts.push({
+      type: 'text',
+      content: text.substring(lastIndex),
+      key: `text_last`
+    });
+  }
+  
+  // Render text parts
+  return (
+    <Text style={styles.postText}>
+      {textParts.map(part => {
+        if (part.type === 'url') {
+          return (
+            <Text
+              key={part.key}
+              style={styles.urlText}
+              onPress={() => Linking.openURL(part.content)}
+            >
+              {part.content}
+            </Text>
+          );
+        }
+        return <Text key={part.key}>{part.content}</Text>;
+      })}
+    </Text>
+  );
+};
+
+// Component for link preview
+const SafeLinkPreview = ({ url }) => {
+  return (
+    <TouchableOpacity 
+      style={styles.linkPreviewContainer}
+      onPress={() => Linking.openURL(url)}
+    >
+      <View style={styles.linkPreviewContent}>
+        <Text style={styles.linkPreviewUrl} numberOfLines={1}>
+          {url}
+        </Text>
+        <Text style={styles.linkPreviewText}>
+          Tap to open link
+        </Text>
+      </View>
+      <Ionicons name="open-outline" size={20} color="#666" />
+    </TouchableOpacity>
+  );
+};
+
 export default function PostDetailsScreen({ route, navigation }) {
-  const { postId } = route.params;
+  const { post: routePost } = route.params;
   const { user, access_token } = useUser();
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
@@ -30,34 +121,16 @@ export default function PostDetailsScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [likedPosts, setLikedPosts] = useState([]);
   const [likedComments, setLikedComments] = useState([]);
+  const [error, setError] = useState(null);
 
-  // Fetch post and comments data
+  // Process post data and fetch comments when component mounts
   useEffect(() => {
-    fetchPostAndComments();
-  }, [postId, access_token]);
-
-  const fetchPostAndComments = async () => {
-    setLoading(true);
-    try {
-      // Fetch post details
-      const postResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}`, {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!postResponse.ok) {
-        throw new Error("Failed to fetch post");
-      }
-      
-      const postData = await postResponse.json();
-      
+    if (routePost) {
       // Process post to identify URLs
       const processedPost = {
-        ...postData.post,
-        urls: findUrls(postData.post.body),
-        hasOnlyTextAndLink: postData.post.body && !postData.post.media_link && findUrls(postData.post.body).length > 0
+        ...routePost,
+        urls: findUrls(routePost.body || ""),
+        hasOnlyTextAndLink: routePost.body && !routePost.media_link && findUrls(routePost.body || "").length > 0
       };
       
       setPost(processedPost);
@@ -67,47 +140,88 @@ export default function PostDetailsScreen({ route, navigation }) {
         setLikedPosts([processedPost.id]);
       }
       
-      // Fetch comments
-      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/comments`, {
+      // Fetch comments for this post
+      fetchComments();
+    }
+  }, [routePost, access_token]);
+
+  const fetchComments = async () => {
+    if (!routePost?.id || !access_token) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comments/${routePost.id}`, {
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json',
         },
       });
       
+      // If the response is not OK, we need to check if it's the "no comments" message
       if (!commentsResponse.ok) {
-        throw new Error("Failed to fetch comments");
+        const errorData = await commentsResponse.json();
+        // If it's the specific "no comments" message, treat it as empty comments, not an error
+        if (errorData.message === "no comments for this post yet") {
+          setComments([]);
+          setLoading(false);
+          return;
+        }
+        throw new Error(errorData.message || "Failed to fetch comments");
       }
       
       const commentsData = await commentsResponse.json();
-      setComments(commentsData.comments || []);
       
-      // Initialize liked comments
-      const initialLikedComments = commentsData.comments
-        ? commentsData.comments
-            .filter(comment => comment.is_liked)
-            .map(comment => comment.id)
-        : [];
-      setLikedComments(initialLikedComments);
+      // Process comments data
+      if (Array.isArray(commentsData)) {
+        // Direct array of comments
+        setComments(commentsData);
+        
+        // Initialize liked comments
+        const initialLikedComments = commentsData
+          .filter(comment => comment.is_liked)
+          .map(comment => comment.id);
+        setLikedComments(initialLikedComments);
+      } else if (commentsData && commentsData.comments && Array.isArray(commentsData.comments)) {
+        // Object with comments property
+        setComments(commentsData.comments);
+        
+        // Initialize liked comments
+        const initialLikedComments = commentsData.comments
+          .filter(comment => comment.is_liked)
+          .map(comment => comment.id);
+        setLikedComments(initialLikedComments);
+      } else {
+        // If structure is unclear, set empty array
+        setComments([]);
+      }
     } catch (error) {
-      console.error("Error fetching post and comments:", error);
+      console.error("Error fetching comments:", error);
+      
+      // Special handling for the "no comments" error message
+      if (error.message === "no comments for this post yet") {
+        setComments([]);
+      } else {
+        setError("Couldn't load comments. Pull down to refresh.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleSubmitComment = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !post?.id) return;
     
     setSubmitting(true);
     try {
-      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/comment`, {
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${post.id}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ body: newComment }),
+        body: JSON.stringify({ content: newComment }),
       });
       
       if (!response.ok) {
@@ -119,13 +233,18 @@ export default function PostDetailsScreen({ route, navigation }) {
       const commentData = await response.json();
       
       // Add the new comment to the comments list
-      setComments([commentData.comment, ...comments]);
+      if (commentData && commentData.comment) {
+        setComments([commentData.comment, ...comments]);
+      } else if (commentData) {
+        // If the API returns the comment directly
+        setComments([commentData, ...comments]);
+      }
       
       // Reset comment input
       setNewComment("");
     } catch (error) {
       console.error("Error posting comment:", error);
-      alert("Failed to post comment. Please try again.");
+      Alert.alert("Error", "Failed to post comment. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -214,11 +333,15 @@ export default function PostDetailsScreen({ route, navigation }) {
     }
   };
 
-  if (loading) {
+  const handleRefresh = () => {
+    fetchComments();
+  };
+
+  if (loading && comments.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ActivityIndicator size="large" color="#3366ff" />
+        <Text style={styles.loadingText}>Loading comments...</Text>
       </View>
     );
   }
@@ -234,7 +357,9 @@ export default function PostDetailsScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post</Text>
-        <View style={styles.placeholderButton} />
+        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+          <Ionicons name="refresh" size={24} color="#3366ff" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollContainer}>
@@ -267,6 +392,7 @@ export default function PostDetailsScreen({ route, navigation }) {
                 source={{ uri: post.media_link }} 
                 style={styles.postImage} 
                 resizeMode="cover"
+                onError={(e) => console.log("Image loading error:", e.nativeEvent.error)}
               />
             )}
             
@@ -317,7 +443,7 @@ export default function PostDetailsScreen({ route, navigation }) {
                 style={styles.actionButton}
                 onPress={() => {
                   if (Platform.OS === 'ios' || Platform.OS === 'android') {
-                    const message = post.body;
+                    const message = post.body || "";
                     const url = post.urls.length > 0 ? post.urls[0] : undefined;
                     
                     Linking.share({
@@ -366,26 +492,42 @@ export default function PostDetailsScreen({ route, navigation }) {
         
         {/* Comments List */}
         <View style={styles.commentsSection}>
-          <Text style={styles.commentsSectionTitle}>
-            Comments {comments.length > 0 ? `(${comments.length})` : ''}
-          </Text>
-          
-          {comments.length === 0 ? (
-            <View style={styles.noCommentsContainer}>
-              <Ionicons name="chatbubble-outline" size={40} color="#ccc" />
-              <Text style={styles.noCommentsText}>No comments yet</Text>
-              <Text style={styles.noCommentsSubtext}>Be the first to comment on this post</Text>
-            </View>
-          ) : (
-            comments.map(comment => {
-              const isLiked = likedComments.includes(comment.id);
+        <Text style={styles.commentsSectionTitle}>
+          Comments {comments.length > 0 ? `(${comments.length})` : ''}
+        </Text>
+        
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={40} color="#ff4757" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity 
+              style={styles.refreshButton}
+              onPress={handleRefresh}
+            >
+              <Text style={styles.refreshButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : comments.length === 0 ? (
+          <View style={styles.noCommentsContainer}>
+            <Ionicons name="chatbubble-outline" size={40} color="#ccc" />
+            <Text style={styles.noCommentsText}>No comments yet</Text>
+            <Text style={styles.noCommentsSubtext}>Be the first to comment on this post</Text>
+          </View>
+        ) : (
+          comments.map(comment => {
+            if (!comment || !comment.id || !comment.user) {
+              console.log("Invalid comment:", comment);
+              return null;
+            }
+            
+            const isLiked = likedComments.includes(comment.id);
               
               return (
                 <View key={comment.id} style={styles.commentContainer}>
                   <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: comment.user.username })}>
                     <View style={styles.commentHeader}>
                       <Image 
-                        source={{ uri: comment.user.avatar || 'https://via.placeholder.com/100' }} 
+                        source={{ uri: comment.user?.avatar || 'https://via.placeholder.com/100' }} 
                         style={styles.commentUserAvatar} 
                       />
                       <View>
@@ -397,7 +539,7 @@ export default function PostDetailsScreen({ route, navigation }) {
                     </View>
                   </TouchableOpacity>
                   
-                  <TextWithLinks text={comment.body} />
+                  <TextWithLinks text={comment.content} />
                   
                   <View style={styles.commentActions}>
                     <TouchableOpacity 
@@ -456,12 +598,12 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 4,
   },
+  refreshButton: {
+    padding: 4,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-  },
-  placeholderButton: {
-    width: 32,
   },
   scrollContainer: {
     flex: 1,
@@ -470,6 +612,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
   loadingText: {
     marginTop: 12,
@@ -491,6 +634,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 12,
+    backgroundColor: "#f0f0f0",
   },
   authorName: {
     fontWeight: "bold",
@@ -505,11 +649,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  postText: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  urlText: {
+    color: "#3366ff",
+    textDecorationLine: "underline",
+  },
+  linkPreviewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  linkPreviewContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+  linkPreviewUrl: {
+    color: "#3366ff",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  linkPreviewText: {
+    fontSize: 12,
+    color: "#666",
+  },
   postImage: {
     width: "100%",
     height: 200,
     borderRadius: 8,
     marginTop: 12,
+    backgroundColor: "#f0f0f0",
   },
   interactionSummary: {
     flexDirection: "row",
@@ -557,6 +734,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 12,
+    backgroundColor: "#f0f0f0",
   },
   commentInput: {
     flex: 1,
@@ -591,6 +769,8 @@ const styles = StyleSheet.create({
   noCommentsContainer: {
     alignItems: "center",
     padding: 32,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
   },
   noCommentsText: {
     fontSize: 16,
@@ -620,6 +800,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 8,
+    backgroundColor: "#f0f0f0",
   },
   commentUserName: {
     fontWeight: "bold",
@@ -642,5 +823,25 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 12,
     color: "#666",
+  },
+  errorContainer: {
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "#fff3f3",
+    borderRadius: 12,
+    borderColor: "#ffdddd",
+    borderWidth: 1,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 8,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  refreshButtonText: {
+    color: "#3366ff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

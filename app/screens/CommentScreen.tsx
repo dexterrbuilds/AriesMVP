@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  Image, 
-  TouchableOpacity, 
-  ActivityIndicator, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -15,12 +15,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from '@/contexts/UserContext';
 import * as WebBrowser from 'expo-web-browser';
-
-// Function to detect URLs in text
-const findUrls = (text) => {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  return text.match(urlRegex) || [];
-};
 
 // Function to open links
 const handleOpenLink = async (url) => {
@@ -52,12 +46,12 @@ const TextWithLinks = ({ text }) => {
   return (
     <Text style={styles.postContent}>
       {parts.map((part, i) => {
-        // Check if this part is a URL (matches a URL at position i/2)
+        // Check if this part is a URL
         const isUrl = matches.includes(part);
         if (isUrl) {
           return (
-            <Text 
-              key={i} 
+            <Text
+              key={i}
               style={styles.linkText}
               onPress={() => handleOpenLink(part)}
             >
@@ -72,48 +66,17 @@ const TextWithLinks = ({ text }) => {
 };
 
 export default function CommentsScreen({ route, navigation }) {
-  const { postId, post: routedPost } = route.params;
+  const { postId, post } = route.params;
   const { user, access_token } = useUser();
-  const [post, setPost] = useState(routedPost || null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
-  const [loading, setLoading] = useState(!routedPost);
   const [loadingComments, setLoadingComments] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch post data if not provided in route params
+  // Only fetch comments when component mounts
   useEffect(() => {
-    if (!routedPost) {
-      fetchPostDetails();
-    } else {
-      // If post is already provided via route, only fetch comments
-      fetchComments();
-    }
-  }, [postId, access_token, routedPost]);
-
-  const fetchPostDetails = async () => {
-    try {
-      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/posts/${postId}`, {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch post details");
-      }
-      
-      const data = await response.json();
-      setPost(data.post);
-      
-      // After fetching post, get comments
-      fetchComments();
-    } catch (error) {
-      console.error("Error fetching post details:", error);
-      setLoading(false);
-    }
-  };
+    fetchComments();
+  }, [postId, access_token]);
 
   const fetchComments = async () => {
     setLoadingComments(true);
@@ -134,7 +97,6 @@ export default function CommentsScreen({ route, navigation }) {
     } catch (error) {
       console.error("Error fetching comments:", error);
     } finally {
-      setLoading(false);
       setLoadingComments(false);
     }
   };
@@ -144,16 +106,14 @@ export default function CommentsScreen({ route, navigation }) {
     
     setSubmitting(true);
     try {
-      // Using the correct endpoint and payload structure
-      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment`, {
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${postId}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          post_id: postId, 
-          content: newComment 
+        body: JSON.stringify({
+          content: newComment
         }),
       });
       
@@ -164,10 +124,8 @@ export default function CommentsScreen({ route, navigation }) {
       
       // Comment posted successfully
       setNewComment("");
-      
       // Refresh comments list
       fetchComments();
-      
     } catch (error) {
       console.error("Error posting comment:", error);
       alert("Failed to post comment. Please try again.");
@@ -175,15 +133,6 @@ export default function CommentsScreen({ route, navigation }) {
       setSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>Loading post details...</Text>
-      </View>
-    );
-  }
 
   return (
     <KeyboardAvoidingView
@@ -198,16 +147,16 @@ export default function CommentsScreen({ route, navigation }) {
         <Text style={styles.headerTitle}>Comments</Text>
         <View style={styles.placeholderButton} />
       </View>
-
+      
       <ScrollView style={styles.scrollContainer}>
         {/* Original Post */}
         {post && (
           <View style={styles.originalPost}>
             <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: post.user.username })}>
               <View style={styles.postHeader}>
-                <Image 
-                  source={{ uri: post.user.avatar || 'https://via.placeholder.com/100' }} 
-                  style={styles.avatar} 
+                <Image
+                  source={{ uri: post.user.avatar || 'https://via.placeholder.com/100' }}
+                  style={styles.avatar}
                 />
                 <View>
                   <Text style={styles.authorName}>{post.user.first_name} {post.user.last_name}</Text>
@@ -216,24 +165,22 @@ export default function CommentsScreen({ route, navigation }) {
                 </View>
               </View>
             </TouchableOpacity>
-            
             <TextWithLinks text={post.body} />
-            
             {post.media_link && (
-              <Image 
-                source={{ uri: post.media_link }} 
-                style={styles.postImage} 
+              <Image
+                source={{ uri: post.media_link }}
+                style={styles.postImage}
                 resizeMode="cover"
               />
             )}
           </View>
         )}
-
+        
         {/* Comments Section */}
         <View style={styles.commentsSection}>
           <Text style={styles.commentsHeader}>
-            {comments.length > 0 
-              ? `${comments.length} Comment${comments.length !== 1 ? 's' : ''}` 
+            {comments.length > 0
+              ? `${comments.length} Comment${comments.length !== 1 ? 's' : ''}`
               : 'No comments yet'}
           </Text>
           
@@ -247,9 +194,9 @@ export default function CommentsScreen({ route, navigation }) {
               <View key={comment.id} style={styles.commentItem}>
                 <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: comment.user.username })}>
                   <View style={styles.commentHeader}>
-                    <Image 
-                      source={{ uri: comment.user.avatar || 'https://via.placeholder.com/100' }} 
-                      style={styles.commentAvatar} 
+                    <Image
+                      source={{ uri: comment.user.avatar || 'https://via.placeholder.com/100' }}
+                      style={styles.commentAvatar}
                     />
                     <View>
                       <Text style={styles.commentAuthor}>{comment.user.first_name} {comment.user.last_name}</Text>
@@ -266,9 +213,9 @@ export default function CommentsScreen({ route, navigation }) {
       
       <View style={styles.commentInputWrapper}>
         <View style={styles.commentInputContainer}>
-          <Image 
-            source={{ uri: user?.avatar || 'https://via.placeholder.com/100' }} 
-            style={styles.inputAvatar} 
+          <Image
+            source={{ uri: user?.avatar || 'https://via.placeholder.com/100' }}
+            style={styles.inputAvatar}
           />
           <TextInput
             style={styles.commentInput}
@@ -278,9 +225,9 @@ export default function CommentsScreen({ route, navigation }) {
             multiline
           />
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.submitButton, 
+            styles.submitButton,
             (!newComment.trim() || submitting) && styles.disabledButton
           ]}
           onPress={handleSubmitComment}
@@ -325,16 +272,6 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
   },
   originalPost: {
     padding: 16,
