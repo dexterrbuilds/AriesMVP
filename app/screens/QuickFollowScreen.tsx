@@ -4,7 +4,7 @@ import { useUser } from '@/contexts/UserContext';
 
 export default function QuickFollowScreen({ navigation }: any) {
   const [followedAccounts, setFollowedAccounts] = useState<string[]>([]);
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -31,7 +31,7 @@ export default function QuickFollowScreen({ navigation }: any) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${access_token}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );

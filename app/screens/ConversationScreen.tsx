@@ -76,7 +76,7 @@ const ConversationScreen = ({ route, navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const flatListRef = useRef<FlatList>(null);
   const [recipientUsername, setRecipientUsername] = useState<string>(otherUser?.username || userName);
   const [recipientName, setRecipientName] = useState<string>('');
@@ -136,7 +136,7 @@ const ConversationScreen = ({ route, navigation }: any) => {
         `https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/${userName}`,
         {
           headers: {
-            Authorization: `Bearer ${access_token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         }
@@ -195,7 +195,7 @@ const ConversationScreen = ({ route, navigation }: any) => {
         `https://ariesmvp-9903a26b3095.herokuapp.com/api/messages/conversations/by-username/${username}`,
         {
           headers: {
-            Authorization: `Bearer ${access_token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         }
@@ -238,7 +238,7 @@ const ConversationScreen = ({ route, navigation }: any) => {
         `https://ariesmvp-9903a26b3095.herokuapp.com/api/messages/conversations/${conversationId}`,
         {
           headers: {
-            Authorization: `Bearer ${access_token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         }
@@ -278,7 +278,7 @@ const ConversationScreen = ({ route, navigation }: any) => {
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${access_token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

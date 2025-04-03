@@ -15,7 +15,7 @@ const STICKY_HEADER_HEIGHT = 60;
 const TAB_BAR_HEIGHT = 48;
 
 const ProfileScreen = ({ navigation }: any) => {
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -26,7 +26,7 @@ const ProfileScreen = ({ navigation }: any) => {
       try {
         const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/${user?.username}`, {
           headers: {
-            Authorization: `Bearer ${access_token}`
+            Authorization: `Bearer ${token}`
           }
         });
         setProfileData(response.data);
@@ -42,7 +42,7 @@ const ProfileScreen = ({ navigation }: any) => {
     };
 
     fetchProfileData();
-  }, [user?.username, access_token]);
+  }, [user?.username, token]);
 
   useEffect(() => {
     if (profileData) {
@@ -59,7 +59,7 @@ const ProfileScreen = ({ navigation }: any) => {
       
       await axios.post(endpoint, {}, {
         headers: {
-          Authorization: `Bearer ${access_token}`
+          Authorization: `Bearer ${token}`
         }
       });
       

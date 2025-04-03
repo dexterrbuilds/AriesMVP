@@ -13,9 +13,8 @@ import CustomAlert from '@/components/CustomAlert'; // Import the custom alert c
 const { width } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }: any) => {
-  const { setUser, setAccessToken } = useUser();
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const { setUser, setToken } = useUser();
+  const [login, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -52,7 +51,7 @@ const LoginScreen = ({ navigation }: any) => {
   };
 
   const handleLogin = async () => {
-    if (!email || !username || !password) {
+    if (!login || !password) {
       showErrorAlert('Error', 'All fields are required.');
       return;
     }
@@ -60,20 +59,19 @@ const LoginScreen = ({ navigation }: any) => {
     setLoading(true);
     try {
       const response = await axios.post('https://ariesmvp-9903a26b3095.herokuapp.com/api/login', {
-        username,
-        email,
+        login,
         password,
       });
 
-      const { user, access_token } = response.data;
+      const { user, token } = response.data;
 
       // Save userId and Bearer token to SecureStore
       await saveToSecureStore('userId', user.id.toString());
-      await saveToSecureStore('access_token', access_token);
+      await saveToSecureStore('token', token);
       await saveToSecureStore('user', JSON.stringify(user));  // Save the full user object
 
       setUser(user);  // Update context
-      setAccessToken(access_token);  // Update context
+      setToken(token);  // Update context
 
       // Show success alert and auto-navigate
       showSuccessAlert('Login Successful', `Welcome back, ${user.first_name}!`, user);
@@ -138,23 +136,10 @@ const LoginScreen = ({ navigation }: any) => {
               <MaterialIcons name="person" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Username"
-                value={username}
+                placeholder="Enter your username or email"
+                value={login}
                 onChangeText={setUsername}
                 placeholderTextColor="#999"
-                autoCapitalize="none"
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <MaterialIcons name="email" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholderTextColor="#999"
-                keyboardType="email-address"
                 autoCapitalize="none"
               />
             </View>
@@ -163,7 +148,7 @@ const LoginScreen = ({ navigation }: any) => {
               <MaterialIcons name="lock" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Password"
+                placeholder="Enter your Password"
                 value={password}
                 onChangeText={setPassword}
                 placeholderTextColor="#999"

@@ -10,7 +10,7 @@ export default function NotificationScreen({ navigation }: any) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState("All");
-    const { user, access_token } = useUser();
+    const { user, token } = useUser();
 
     // Define notification types for tabs
     const notificationTypes = {
@@ -30,7 +30,7 @@ export default function NotificationScreen({ navigation }: any) {
             setLoading(true);
             const response = await fetch('https://ariesmvp-9903a26b3095.herokuapp.com/api/notifications', {
                 headers: {
-                  Authorization: `Bearer ${access_token}`,
+                  Authorization: `Bearer ${token}`,
                   'Content-Type': 'application/json',
                 },
               });

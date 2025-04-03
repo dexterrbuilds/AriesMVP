@@ -16,7 +16,7 @@ const TAB_BAR_HEIGHT = 48;
 
 const UsersProfile = ({ navigation, route }: any) => {
   const { userName } = route.params;
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -27,7 +27,7 @@ const UsersProfile = ({ navigation, route }: any) => {
       try {
         const response = await axios.get(`https://ariesmvp-9903a26b3095.herokuapp.com/api/profile/${userName}`, {
           headers: {
-            Authorization: `Bearer ${access_token}`
+            Authorization: `Bearer ${token}`
           }
         });
         setProfileData(response.data);
@@ -43,7 +43,7 @@ const UsersProfile = ({ navigation, route }: any) => {
     };
 
     fetchProfileData();
-  }, [userName, access_token]);
+  }, [userName, token]);
 
   useEffect(() => {
     if (profileData) {
@@ -67,7 +67,7 @@ const UsersProfile = ({ navigation, route }: any) => {
       
       await axios.post(endpoint, {}, {
         headers: {
-          Authorization: `Bearer ${access_token}`
+          Authorization: `Bearer ${token}`
         }
       });
       

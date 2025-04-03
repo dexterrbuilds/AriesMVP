@@ -25,7 +25,7 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 const MODAL_HEIGHT = SCREEN_HEIGHT * 0.7;
 
 const HireModal = ({ visible, onClose, educator }) => {
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [topic, setTopic] = useState('');
   const [medium, setMedium] = useState('');
   const [duration, setDuration] = useState('');
@@ -57,12 +57,12 @@ const HireModal = ({ visible, onClose, educator }) => {
     }
 
     setLoading(true);
-    console.log(`"Access token:" ${access_token}`)
+    console.log(`"Access token:" ${token}`)
     try {
       const response = await fetch('https://ariesmvp-9903a26b3095.herokuapp.com/api/api/hire-request', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -198,7 +198,7 @@ const HireModal = ({ visible, onClose, educator }) => {
 };
 
 const SearchScreen = ({ navigation }: any) => {
-    const { user, access_token } = useUser();
+    const { user, token } = useUser();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState({ posts: [], users: [] });
     const [loading, setLoading] = useState(false);
@@ -217,7 +217,7 @@ const SearchScreen = ({ navigation }: any) => {
         
         await performSearch(searchQuery);
       }, 500),
-      [access_token]
+      [token]
     );
 
     useEffect(() => {
@@ -242,7 +242,7 @@ const SearchScreen = ({ navigation }: any) => {
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
-                    Authorization: `Bearer ${access_token}`,
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -471,7 +471,7 @@ const SearchScreen = ({ navigation }: any) => {
                     setSelectedEducator(null);
                 }}
                 educator={selectedEducator}
-                access_token={access_token}
+                token={token}
             />
             
             <View style={styles.bottomNav}>

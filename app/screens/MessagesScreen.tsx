@@ -48,7 +48,7 @@ export default function MessagesScreen({ navigation }: any) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
 
 
   // Format the date relative to now (e.g. "Today", "Yesterday", or "MM/DD/YYYY")
@@ -78,7 +78,7 @@ export default function MessagesScreen({ navigation }: any) {
       setLoading(true);
       const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/messages/conversations", {
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });

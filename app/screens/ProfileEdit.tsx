@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext';
 import * as FileSystem from 'expo-file-system'; // Add this import
 
 export default function EditProfile() {
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,7 +96,7 @@ export default function EditProfile() {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${access_token}`,
+            Authorization: `Bearer ${token}`,
             Accept: 'application/json',
             // Don't set Content-Type - let it be set automatically with boundary
           },

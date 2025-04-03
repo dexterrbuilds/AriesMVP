@@ -113,7 +113,7 @@ const SafeLinkPreview = ({ url }) => {
 
 export default function PostDetailsScreen({ route, navigation }) {
   const { post: routePost } = route.params;
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
@@ -143,10 +143,10 @@ export default function PostDetailsScreen({ route, navigation }) {
       // Fetch comments for this post
       fetchComments();
     }
-  }, [routePost, access_token]);
+  }, [routePost, token]);
 
   const fetchComments = async () => {
-    if (!routePost?.id || !access_token) return;
+    if (!routePost?.id || !token) return;
     
     setLoading(true);
     setError(null);
@@ -154,7 +154,7 @@ export default function PostDetailsScreen({ route, navigation }) {
     try {
       const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comments/${routePost.id}`, {
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -218,7 +218,7 @@ export default function PostDetailsScreen({ route, navigation }) {
       const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${post.id}`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ content: newComment }),
@@ -257,7 +257,7 @@ export default function PostDetailsScreen({ route, navigation }) {
       const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${post.id}/like`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -295,7 +295,7 @@ export default function PostDetailsScreen({ route, navigation }) {
       const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${commentId}/like`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });

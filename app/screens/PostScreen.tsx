@@ -119,7 +119,7 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
 };
 
 export default function PostScreen({ navigation }: any) {
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [textContent, setTextContent] = useState("");
   const [mediaType, setMediaType] = useState<"text" | "image" | "video" | null>(null);
   const [mediaFile, setMediaFile] = useState<string | null>(null);
@@ -260,7 +260,7 @@ export default function PostScreen({ navigation }: any) {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${access_token}`
+          'Authorization': `Bearer ${token}`
         },
         body: formData
       });

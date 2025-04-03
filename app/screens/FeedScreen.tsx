@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  Image, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  RefreshControl, 
-  Linking, 
-  Platform 
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Linking,
+  Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import * as DocumentPicker from 'expo-document-picker';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
+import { Video, ResizeMode } from 'expo-av';
+import RNFS from 'react-native-fs';
 import BottomNav from "@/components/BottomNav";
 import { useUser } from '@/contexts/UserContext';
 import { useIsFocused } from '@react-navigation/native';
@@ -24,9 +31,99 @@ const findUrls = (text) => {
   return text.match(urlRegex) || [];
 };
 
-// Function to open links
-const handleOpenLink = async (url) => {
+// Function to get file extension
+const getFileExtension = (filename) => {
+  return filename.split('.').pop().toLowerCase();
+};
+
+// Function to determine file type
+const getFileType = (url) => {
+  const extension = getFileExtension(url);
+  
+  const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm'];
+  const documentExtensions = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'];
+  
+  if (videoExtensions.includes(extension)) {
+    return 'video';
+  } else if (documentExtensions.includes(extension)) {
+    return 'document';
+  } else {
+    return 'other';
+  }
+};
+
+// Function to download and open files
+const handleFileOpen = async (fileUrl, fileType) => {
   try {
+    // Request permissions first
+    if (Platform.OS === 'android') {
+      const permission = await MediaLibrary.requestPermissionsAsync();
+      if (!permission.granted) {
+        return;
+      }
+    }
+
+    // Create a unique filename
+    const filename = fileUrl.split('/').pop();
+    const extension = getFileExtension(fileUrl);
+    const localFile = `${FileSystem.cacheDirectory}${filename}`;
+
+    // Show download progress indicator
+    const downloadResumable = FileSystem.createDownloadResumable(
+      fileUrl,
+      localFile,
+      {},
+      (downloadProgress) => {
+        const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+        // Progress can be used to show a progress bar if needed
+      }
+    );
+
+    const { uri } = await downloadResumable.downloadAsync();
+    
+    // Open based on platform and file type
+    if (Platform.OS === 'ios') {
+      // iOS can use QuickLook for most file types
+      Sharing.shareAsync(uri);
+    } else {
+      // Android needs specific handling
+      const UTI = {
+        pdf: 'application/pdf',
+        txt: 'text/plain',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xls: 'application/vnd.ms-excel',
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ppt: 'application/vnd.ms-powerpoint',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      };
+
+      const mimeType = UTI[extension] || '*/*';
+      
+      // Use Intent Launcher to open with appropriate app
+      IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: uri,
+        flags: 1,
+        type: mimeType
+      });
+    }
+  } catch (error) {
+    console.error("Error opening file:", error);
+  }
+};
+
+// Function to open links
+const handleOpenLink = async (url: string) => {
+  try {
+    // Check if this is a file link
+    const fileType = getFileType(url);
+    
+    if (fileType === 'video' || fileType === 'document') {
+      await handleFileOpen(url, fileType);
+      return;
+    }
+    
+    // Handle regular web links
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       // Use WebBrowser for in-app browser experience
       await WebBrowser.openBrowserAsync(url);
@@ -44,17 +141,153 @@ const handleOpenLink = async (url) => {
   }
 };
 
+// Video Player Component
+const VideoPlayer = ({ source }) => {
+  const [status, setStatus] = useState({});
+  const [visible, setVisible] = useState(true);
+  const videoRef = useRef(null);
+  
+  return (
+    <View style={styles.videoContainer}>
+      <Video
+        ref={videoRef}
+        source={{ uri: source }}
+        style={styles.videoPlayer}
+        useNativeControls
+        resizeMode={ResizeMode.CONTAIN}
+        onPlaybackStatusUpdate={status => setStatus(() => status)}
+        shouldPlay={false}
+        isMuted={false}
+        isLooping={false}
+      />
+      <TouchableOpacity 
+        style={styles.videoOverlay}
+        onPress={() => {
+          if (videoRef.current) {
+            if (status.isPlaying) {
+              videoRef.current.pauseAsync();
+            } else {
+              videoRef.current.playAsync();
+            }
+          }
+        }}
+      >
+        {!status.isPlaying && (
+          <View style={styles.playButtonContainer}>
+            <Ionicons name="play" size={40} color="white" />
+          </View>
+        )}
+      </TouchableOpacity>
+      <View style={styles.videoProgressContainer}>
+        <View 
+          style={[
+            styles.videoProgress, 
+            { width: `${status.positionMillis && status.durationMillis ? (status.positionMillis / status.durationMillis) * 100 : 0}%` }
+          ]} 
+        />
+      </View>
+    </View>
+  );
+};
+
+// Document Preview Component
+const DocumentPreview = ({ url }) => {
+  const extension = getFileExtension(url);
+  const filename = url.split('/').pop();
+  const [downloading, setDownloading] = useState(false);
+  
+  const getDocumentIcon = () => {
+    switch (extension) {
+      case 'pdf':
+        return 'document-text';
+      case 'doc':
+      case 'docx':
+        return 'document';
+      case 'txt':
+        return 'create';
+      case 'xls':
+      case 'xlsx':
+        return 'grid';
+      case 'ppt':
+      case 'pptx':
+        return 'easel';
+      default:
+        return 'document-attach';
+    }
+  };
+
+  const getDocumentColor = () => {
+    switch (extension) {
+      case 'pdf':
+        return '#FF5733';
+      case 'doc':
+      case 'docx':
+        return '#2B7AE9';
+      case 'txt':
+        return '#333333';
+      case 'xls':
+      case 'xlsx':
+        return '#1F7244';
+      case 'ppt':
+      case 'pptx':
+        return '#D24726';
+      default:
+        return '#666666';
+    }
+  };
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    await handleFileOpen(url, 'document');
+    setDownloading(false);
+  };
+
+  return (
+    <TouchableOpacity
+      style={styles.documentContainer}
+      onPress={handleDownload}
+    >
+      <View style={[styles.documentIconContainer, { backgroundColor: `${getDocumentColor()}15` }]}>
+        <Ionicons name={getDocumentIcon()} size={36} color={getDocumentColor()} />
+        <Text style={[styles.documentExtension, { color: getDocumentColor() }]}>.{extension}</Text>
+      </View>
+      <View style={styles.documentInfo}>
+        <Text style={styles.documentName} numberOfLines={1}>{filename}</Text>
+        <Text style={styles.documentSize}>{extension.toUpperCase()} document</Text>
+      </View>
+      {downloading ? (
+        <ActivityIndicator size="small" color="#3366ff" />
+      ) : (
+        <View style={styles.documentActionButton}>
+          <Ionicons name="download-outline" size={20} color="white" />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
 // Custom link preview component to handle image errors
 const SafeLinkPreview = ({ url }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  
+  // Check if this is a file link
+  const fileType = getFileType(url);
+  
+  if (fileType === 'video') {
+    return <VideoPlayer source={url} />;
+  }
+  
+  if (fileType === 'document') {
+    return <DocumentPreview url={url} />;
+  }
 
   return (
-    <TouchableOpacity 
-      style={styles.linkPreviewContainer} 
+    <TouchableOpacity
+      style={styles.linkPreviewContainer}
       onPress={() => handleOpenLink(url)}
     >
-      <LinkPreview 
+      <LinkPreview
         text={url}
         onPreviewDataFetched={() => setIsLoading(false)}
         onError={() => {
@@ -70,7 +303,6 @@ const SafeLinkPreview = ({ url }) => {
               </View>
             );
           }
-          
           if (error || !previewData) {
             return (
               <View style={styles.linkPreview}>
@@ -85,13 +317,12 @@ const SafeLinkPreview = ({ url }) => {
               </View>
             );
           }
-          
           return (
             <View style={styles.linkPreview}>
               {previewData.image && typeof previewData.image === 'string' ? (
-                <Image 
-                  source={{ uri: previewData.image }} 
-                  style={styles.linkPreviewImage} 
+                <Image
+                  source={{ uri: previewData.image }}
+                  style={styles.linkPreviewImage}
                   resizeMode="cover"
                 />
               ) : (
@@ -119,6 +350,32 @@ const SafeLinkPreview = ({ url }) => {
     </TouchableOpacity>
   );
 };
+// Media Component to handle various types
+const MediaContent = ({ mediaUrl, preventNavigation = false }) => {
+  if (!mediaUrl) return null;
+  
+  const fileType = getFileType(mediaUrl);
+  
+  switch(fileType) {
+    case 'video':
+      return <VideoPlayer source={mediaUrl} />;
+    case 'document':
+      return <DocumentPreview url={mediaUrl} />;
+    default:
+      return (
+        <TouchableOpacity 
+          onPress={() => handleOpenLink(mediaUrl)}
+          activeOpacity={0.9}
+        >
+          <Image
+            source={{ uri: mediaUrl }}
+            style={styles.postImage}
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
+      );
+  }
+};
 
 // Function to render text with clickable links
 const TextWithLinks = ({ text }) => {
@@ -134,8 +391,8 @@ const TextWithLinks = ({ text }) => {
         const isUrl = matches.includes(part);
         if (isUrl) {
           return (
-            <Text 
-              key={i} 
+            <Text
+              key={i}
               style={styles.linkText}
               onPress={() => handleOpenLink(part)}
             >
@@ -150,7 +407,7 @@ const TextWithLinks = ({ text }) => {
 };
 
 export default function FeedScreen({ route, navigation }) {
-  const { user, access_token } = useUser();
+  const { user, token } = useUser();
   const [activeTab, setActiveTab] = useState("For You");
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,7 +420,7 @@ export default function FeedScreen({ route, navigation }) {
     try {
       const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/feed", {
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -173,16 +430,27 @@ export default function FeedScreen({ route, navigation }) {
         console.error("Feed error:", errorData);
         throw new Error(`API error: ${errorData.message || 'Unknown error'}`);
       }
-
+      
       const data = await response.json();
       console.log("Fetched posts successfully");
       
-      // Process posts to identify URLs
-      const processedPosts = data.posts ? data.posts.map(post => ({
-        ...post,
-        urls: findUrls(post.body),
-        hasOnlyTextAndLink: post.body && !post.media_link && findUrls(post.body).length > 0
-      })) : [];
+      // Process posts to identify URLs and file types
+      const processedPosts = data.posts ? data.posts.map(post => {
+        const urls = findUrls(post.body);
+        
+        // Process media_link to determine file type
+        let mediaType = null;
+        if (post.media_link) {
+          mediaType = getFileType(post.media_link);
+        }
+        
+        return {
+          ...post,
+          urls,
+          mediaType,
+          hasOnlyTextAndLink: post.body && !post.media_link && urls.length > 0
+        };
+      }) : [];
       
       setPosts(processedPosts);
       
@@ -205,7 +473,7 @@ export default function FeedScreen({ route, navigation }) {
     if (isFocused) {
       fetchPosts();
     }
-  }, [isFocused, access_token]);
+  }, [isFocused, token]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -217,7 +485,7 @@ export default function FeedScreen({ route, navigation }) {
       const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/like`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -237,8 +505,8 @@ export default function FeedScreen({ route, navigation }) {
           return prevPosts.map(post => {
             if (post.id === postId) {
               const isAlreadyLiked = likedPosts.includes(postId);
-              const likesCount = isAlreadyLiked ? 
-                (post.likes_count > 0 ? post.likes_count - 1 : 0) : 
+              const likesCount = isAlreadyLiked ?
+                (post.likes_count > 0 ? post.likes_count - 1 : 0) :
                 ((post.likes_count || 0) + 1);
               return {
                 ...post,
@@ -277,24 +545,38 @@ export default function FeedScreen({ route, navigation }) {
     { id: "3", image: "https://via.placeholder.com/300x100" },
   ];
 
+  // Sample course posts including different media types
   const coursePosts = [
-    { 
-      id: 1001, 
-      user: { username: "edu_mentor", first_name: "Edu", last_name: "Mentor", role: "Mentor", avatar: "https://via.placeholder.com/60" }, 
-      body: "New course: Blockchain Basics https://edu-platform.com/courses/blockchain-101", 
-      media_link: "https://via.placeholder.com/300x200", 
+    {
+      id: 1001,
+      user: { username: "edu_mentor", first_name: "Edu", last_name: "Mentor", role: "Mentor", avatar: "https://via.placeholder.com/60" },
+      body: "New course: Blockchain Basics",
+      media_link: "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+      mediaType: "video",
       likes_count: 12,
       urls: ["https://edu-platform.com/courses/blockchain-101"],
       hasOnlyTextAndLink: false
     },
-    { 
-      id: 1002, 
-      user: { username: "learn_hub", first_name: "Learn", last_name: "Hub", role: "Instructor", avatar: "https://via.placeholder.com/60" }, 
-      body: "Advanced Solidity programming now available! Check it out: https://edu-platform.com/courses/solidity-advanced", 
+    {
+      id: 1002,
+      user: { username: "learn_hub", first_name: "Learn", last_name: "Hub", role: "Instructor", avatar: "https://via.placeholder.com/60" },
+      body: "Advanced Solidity programming now available! Check it out: https://edu-platform.com/courses/solidity-advanced",
+      media_link: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+      mediaType: "document",
       likes_count: 8,
       urls: ["https://edu-platform.com/courses/solidity-advanced"],
-      hasOnlyTextAndLink: true
+      hasOnlyTextAndLink: false
     },
+    {
+      id: 1003,
+      user: { username: "tech_teach", first_name: "Tech", last_name: "Teacher", role: "Instructor", avatar: "https://via.placeholder.com/60" },
+      body: "Here's the lecture notes from today's class on JavaScript fundamentals",
+      media_link: "https://www.w3.org/TR/PNG/iso_8859-1.txt",
+      mediaType: "document",
+      likes_count: 15,
+      urls: [],
+      hasOnlyTextAndLink: false
+    }
   ];
 
   const activeContent = activeTab === "For You" ? posts : coursePosts;
@@ -311,14 +593,14 @@ export default function FeedScreen({ route, navigation }) {
           <Ionicons name="notifications" size={30} color="black" />
         </TouchableOpacity>
       </View>
-
+      
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
           <Text style={styles.loadingText}>Loading posts...</Text>
         </View>
       ) : (
-        <ScrollView 
+        <ScrollView
           style={styles.screen}
           refreshControl={
             <RefreshControl
@@ -339,7 +621,7 @@ export default function FeedScreen({ route, navigation }) {
               </View>
             ))}
           </ScrollView>
-    
+          
           {/* Tabs */}
           <View style={styles.tabs}>
             <TouchableOpacity
@@ -355,36 +637,36 @@ export default function FeedScreen({ route, navigation }) {
               <Text style={[styles.tabText, activeTab === "Courses" && styles.activeTabText]}>Courses</Text>
             </TouchableOpacity>
           </View>
-    
+          
           {/* Banners */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.banners}>
             {banners.map((banner) => (
               <Image key={banner.id} source={{ uri: banner.image }} style={styles.bannerImage} />
             ))}
           </ScrollView>
-    
+          
           {/* Active Content */}
           {activeContent.length > 0 ? (
             <View style={styles.posts}>
               {activeContent.map((post) => {
                 const isLiked = likedPosts.includes(post.id);
                 return (
-                  <TouchableOpacity 
-                    key={post.id} 
+                  <TouchableOpacity
+                    key={post.id}
                     style={styles.postContainer}
                     onPress={() => navigateToPostDetails(post)}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={(e) => {
                           e.stopPropagation(); // Prevent triggering the parent onPress
                           navigation.navigate("UsersProfile", { userName: post.user.username });
                         }}
                       >
                         <View>
-                          <Image 
-                            source={{uri: post.user.avatar || 'https://via.placeholder.com/100'}} 
-                            style={styles.postAvatar} 
+                          <Image
+                            source={{uri: post.user.avatar || 'https://via.placeholder.com/100'}}
+                            style={styles.postAvatar}
                           />
                         </View>
                       </TouchableOpacity>
@@ -403,45 +685,33 @@ export default function FeedScreen({ route, navigation }) {
                       <SafeLinkPreview url={post.urls[0]} />
                     )}
                     
-                    {/* Post image if available - make it clickable if there's a link */}
+                    {/* Post media - render based on media type */}
                     {post.media_link && (
-                      <TouchableOpacity 
-                        onPress={(e) => {
-                          e.stopPropagation(); // Prevent triggering the parent onPress
-                          post.urls.length > 0 ? handleOpenLink(post.urls[0]) : null;
-                        }}
-                      >
-                        <Image 
-                          source={{ uri: post.media_link }} 
-                          style={styles.postImage} 
-                          resizeMode="cover"
-                        />
-                      </TouchableOpacity>
+                      <MediaContent mediaUrl={post.media_link} />
                     )}
-                      
+                    
                     <View style={styles.actionButtons}>
-                      <TouchableOpacity 
-                        style={styles.actionButton} 
+                      <TouchableOpacity
+                        style={styles.actionButton}
                         onPress={(e) => {
                           e.stopPropagation(); // Prevent triggering the parent onPress
                           handleLike(post.id);
                         }}
                       >
-                        <Ionicons 
-                          name={isLiked ? "heart" : "heart-outline"} 
-                          size={24} 
-                          color={isLiked ? "#ff4757" : "#666"} 
+                        <Ionicons
+                          name={isLiked ? "heart" : "heart-outline"}
+                          size={24}
+                          color={isLiked ? "#ff4757" : "#666"}
                         />
                         <Text style={[styles.actionText, isLiked && {color: '#ff4757'}]}>
                           {post.likes_count > 0 ? `${post.likes_count}` : ''} Like{post.likes_count !== 1 ? 's' : ''}
                         </Text>
                       </TouchableOpacity>
-                       
-                      <TouchableOpacity 
-                        style={styles.actionButton} 
+                      <TouchableOpacity
+                        style={styles.actionButton}
                         onPress={(e) => {
                           e.stopPropagation(); // Prevent triggering the parent onPress
-                          navigation.navigate("Comments", { 
+                          navigation.navigate("Comments", {
                             postId: post.id,
                             post: post // Pass the entire post object
                           });
@@ -452,16 +722,14 @@ export default function FeedScreen({ route, navigation }) {
                           {post.comments_count > 0 ? `${post.comments_count}` : ''} Comment{post.comments_count !== 1 ? 's' : ''}
                         </Text>
                       </TouchableOpacity>
-                       
-                      <TouchableOpacity 
-                        style={styles.actionButton} 
+                      <TouchableOpacity
+                        style={styles.actionButton}
                         onPress={(e) => {
                           e.stopPropagation(); // Prevent triggering the parent onPress
                           if (Platform.OS === 'ios' || Platform.OS === 'android') {
                             const message = post.body;
                             const url = post.urls.length > 0 ? post.urls[0] : undefined;
-                            
-                            Linking.share({
+                            Sharing.shareAsync({
                               title: `Shared post from ${post.user.first_name} ${post.user.last_name}`,
                               message,
                               url
@@ -473,7 +741,7 @@ export default function FeedScreen({ route, navigation }) {
                         <Text style={styles.actionText}>Share</Text>
                       </TouchableOpacity>
                     </View>
-                      
+                    
                     {/* Show interactions count (likes, comments) */}
                     {(post.likes_count > 0 || post.comments_count > 0) && (
                       <View style={styles.interactionSummary}>
@@ -500,8 +768,7 @@ export default function FeedScreen({ route, navigation }) {
               <Ionicons name="document-text-outline" size={64} color="#ccc" />
               <Text style={styles.emptyText}>No posts available</Text>
               <Text style={styles.emptySubtext}>Follow more educators to see their content here</Text>
-               
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => navigation.navigate("Discover")}
               >
@@ -511,7 +778,7 @@ export default function FeedScreen({ route, navigation }) {
           )}
         </ScrollView>
       )}
-
+      
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate("Post")}
@@ -524,12 +791,109 @@ export default function FeedScreen({ route, navigation }) {
     </View>
   );
 }
-                      
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
   },
+  videoContainer: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoPlayer: {
+    width: "100%",
+    height: "100%",
+  },
+  // Just add these to your existing styles
+videoContainer: {
+  width: "100%",
+  height: 220,
+  backgroundColor: "#000",
+  borderRadius: 8,
+  overflow: "hidden",
+  marginBottom: 12,
+  position: "relative",
+},
+videoPlayer: {
+  width: "100%",
+  height: "100%",
+},
+videoOverlay: {
+  ...StyleSheet.absoluteFillObject,
+  backgroundColor: "rgba(0,0,0,0.2)",
+  justifyContent: "center",
+  alignItems: "center",
+},
+playButtonContainer: {
+  width: 70,
+  height: 70,
+  borderRadius: 35,
+  backgroundColor: "rgba(0,0,0,0.6)",
+  justifyContent: "center",
+  alignItems: "center",
+},
+videoProgressContainer: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 3,
+  backgroundColor: "rgba(255,255,255,0.3)",
+},
+videoProgress: {
+  height: 3,
+  backgroundColor: "#3366ff",
+},
+documentContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#f9f9f9",
+  borderRadius: 12,
+  padding: 12,
+  marginVertical: 10,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 3,
+  elevation: 2,
+},
+documentIconContainer: {
+  width: 70,
+  height: 70,
+  borderRadius: 10,
+  justifyContent: "center",
+  alignItems: "center",
+  marginRight: 12,
+},
+documentExtension: {
+  fontSize: 12,
+  fontWeight: "600",
+  marginTop: 4,
+},
+documentInfo: {
+  flex: 1,
+},
+documentName: {
+  fontWeight: "bold",
+  fontSize: 16,
+  marginBottom: 6,
+},
+documentSize: {
+  fontSize: 12,
+  color: "#666",
+},
+documentActionButton: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: "#3366ff",
+  justifyContent: "center",
+  alignItems: "center",
+},
   fab: {
     position: "absolute",
     bottom: 80,

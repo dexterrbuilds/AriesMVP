@@ -14,26 +14,26 @@ type User = {
 
 type UserContextType = {
   user: User;
-  access_token: string | null;
+  token: string | null;
   setUser: (user: User) => void;
-  setAccessToken: (token: string) => void;
+  setToken: (token: string) => void;
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User>(null);
-  const [access_token, setAccessToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     // Retrieve stored user and token from SecureStore when the app loads
     const fetchStoredData = async () => {
       const storedUser = await SecureStore.getItemAsync('user');
-      const storedToken = await SecureStore.getItemAsync('access_token');
+      const storedToken = await SecureStore.getItemAsync('token');
 
       if (storedUser && storedToken) {
         setUser(JSON.parse(storedUser));
-        setAccessToken(storedToken);
+        setToken(storedToken);
       }
     };
 
@@ -41,7 +41,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, access_token, setUser, setAccessToken }}>
+    <UserContext.Provider value={{ user, token, setUser, setToken }}>
       {children}
     </UserContext.Provider>
   );

@@ -57,7 +57,7 @@ export default function RegisterScreen({ navigation }: any) {
 
           // Save the full user object to SecureStore as a string
           await SecureStore.setItemAsync('user', JSON.stringify(userWithToken));
-          await SecureStore.setItemAsync('access_token', JSON.stringify(token)); // Also save token separately
+          await SecureStore.setItemAsync('token', JSON.stringify(token)); // Also save token separately
 
           // Update context
           setUser(userWithToken);
