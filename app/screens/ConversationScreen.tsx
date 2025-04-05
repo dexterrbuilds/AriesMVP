@@ -296,7 +296,7 @@ const ConversationScreen = ({ route, navigation }: any) => {
       const responseData = await response.json();
       
       // If this was a new conversation, we need to update our state
-      if (isNewConversation && responseData.conversation_id) {
+      if (isNewConversation && responseData.user_one_id) {
         setIsNewConversation(false);
         // We could refetch to get the full conversation, but for simplicity we'll just
         // create a basic conversation object

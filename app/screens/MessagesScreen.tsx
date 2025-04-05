@@ -76,7 +76,7 @@ export default function MessagesScreen({ navigation }: any) {
   const fetchConversations = async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/messages/conversations", {
+      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/conversations", {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

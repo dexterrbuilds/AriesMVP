@@ -406,12 +406,27 @@ const TextWithLinks = ({ text }) => {
   );
 };
 
+// Function to format the class time
+const formatClassTime = (dateTimeString) => {
+  const date = new Date(dateTimeString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// Function to check if a class is live now
+const isLiveNow = (scheduledAt, endedAt) => {
+  const now = new Date();
+  const scheduled = new Date(scheduledAt);
+  return endedAt === null && now >= scheduled;
+};
+
 export default function FeedScreen({ route, navigation }) {
   const { user, token } = useUser();
   const [activeTab, setActiveTab] = useState("For You");
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [liveClasses, setLiveClasses] = useState([]);
+  const [loadingLiveClasses, setLoadingLiveClasses] = useState(true);
   const [likedPosts, setLikedPosts] = useState([]);
   const isFocused = useIsFocused();
 
@@ -469,15 +484,47 @@ export default function FeedScreen({ route, navigation }) {
     }
   };
 
+  const fetchLiveClasses = async () => {
+    setLoadingLiveClasses(true);
+    try {
+      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/live-classes", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Live classes error:", errorData);
+        throw new Error(`API error: ${errorData.message || 'Unknown error'}`);
+      }
+      
+      const data = await response.json();
+      console.log("Fetched live classes successfully");
+      
+      // Set live classes from the response
+      if (data.live_classes && data.live_classes.data) {
+        setLiveClasses(data.live_classes.data);
+      }
+    } catch (error) {
+      console.error("Error fetching live classes:", error);
+    } finally {
+      setLoadingLiveClasses(false);
+    }
+  };
+
   useEffect(() => {
     if (isFocused) {
       fetchPosts();
+      fetchLiveClasses();
     }
   }, [isFocused, token]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchPosts(false);
+    fetchLiveClasses();
   };
 
   const handleLike = async (postId) => {
@@ -530,14 +577,10 @@ export default function FeedScreen({ route, navigation }) {
     navigation.navigate("PostDetails", { post });
   };
 
-  const liveEducators = [
-    { id: "1", name: "Dexterr", avatar: "https://via.placeholder.com/60" },
-    { id: "2", name: "Pompey", avatar: "https://via.placeholder.com/60" },
-    { id: "3", name: "Louis", avatar: "https://via.placeholder.com/60" },
-    { id: "4", name: "John", avatar: "https://via.placeholder.com/60" },
-    { id: "5", name: "Chris", avatar: "https://via.placeholder.com/60" },
-    { id: "6", name: "Alex", avatar: "https://via.placeholder.com/60" },
-  ];
+  // Navigate to Live Class
+  const navigateToLiveClass = (liveClass) => {
+    navigation.navigate("LiveClass", { liveClass });
+  };
 
   const banners = [
     { id: "1", image: "https://via.placeholder.com/300x100" },
@@ -610,17 +653,62 @@ export default function FeedScreen({ route, navigation }) {
             />
           }
         >
-          {/* Live Educators */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.liveEducators}>
-            {liveEducators.map((educator) => (
-              <View key={educator.id} style={styles.educatorContainer}>
-                <View style={styles.liveIndicator}>
-                  <Image source={{ uri: educator.avatar }} style={styles.educatorAvatar} />
-                </View>
-                <Text style={styles.educatorName}>{educator.name}</Text>
-              </View>
-            ))}
-          </ScrollView>
+          {/* Live Classes Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Live Classes</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("AllLiveClasses")}>
+              <Text style={styles.sectionLink}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {loadingLiveClasses ? (
+            <View style={styles.liveEducatorsLoading}>
+              <ActivityIndicator size="small" color="#0000ff" />
+              <Text style={styles.loadingText}>Loading live classes...</Text>
+            </View>
+          ) : liveClasses.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.liveEducators}>
+              {liveClasses.map((liveClass) => (
+                <TouchableOpacity 
+                  key={liveClass.id} 
+                  style={styles.educatorContainer}
+                  onPress={() => navigateToLiveClass(liveClass)}
+                >
+                  <View style={[
+                    styles.liveIndicator, 
+                    isLiveNow(liveClass.scheduled_at, liveClass.ended_at) 
+                      ? styles.liveNowIndicator 
+                      : styles.scheduledIndicator
+                  ]}>
+                    <Image 
+                      source={{ 
+                        uri: liveClass.teacher.avatar || 'https://via.placeholder.com/60'
+                      }} 
+                      style={styles.educatorAvatar} 
+                    />
+                    {isLiveNow(liveClass.scheduled_at, liveClass.ended_at) && (
+                      <View style={styles.liveNowBadge}>
+                        <Text style={styles.liveNowText}>LIVE</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.educatorName} numberOfLines={1}>
+                    {liveClass.teacher.first_name} {liveClass.teacher.last_name}
+                  </Text>
+                  <Text style={styles.classTitle} numberOfLines={1}>{liveClass.title}</Text>
+                  <Text style={styles.classTime}>
+                    {isLiveNow(liveClass.scheduled_at, liveClass.ended_at) 
+                      ? 'Live Now' 
+                      : formatClassTime(liveClass.scheduled_at)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.noLiveClasses}>
+              <Text style={styles.noLiveClassesText}>No live classes at the moment</Text>
+            </View>
+          )}
           
           {/* Tabs */}
           <View style={styles.tabs}>
@@ -931,28 +1019,101 @@ documentActionButton: {
   liveEducators: {
     padding: 16,
     backgroundColor: "#fff",
-    marginBottom: 8,
+    marginBottom: 16,
   },
   educatorContainer: {
     alignItems: "center",
-    marginRight: 16,
+    marginRight: 20,
+    width: 100,
   },
   liveIndicator: {
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "#ff4757",
-    borderRadius: 30,
-    padding: 2,
+    borderRadius: 38,
+    padding: 3,
     position: "relative",
   },
+  liveNowIndicator: {
+    borderColor: "#ff4757",
+    shadowColor: "#ff4757",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  scheduledIndicator: {
+    borderColor: "#3366ff",
+  },
   educatorAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
+  liveNowBadge: {
+    position: "absolute",
+    bottom: -2,
+    backgroundColor: "#ff4757",
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignSelf: "center",
+  },
+  liveNowText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   educatorName: {
-    marginTop: 4,
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
+    width: 100,
+  },
+  classTitle: {
     textAlign: "center",
     fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+    width: 100,
+  },
+  classTime: {
+    textAlign: "center",
+    fontSize: 11,
+    color: "#ff4757",
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  sectionLink: {
+    fontSize: 14,
+    color: "#3366ff",
+  },
+  noLiveClasses: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noLiveClassesText: {
+    color: "#999",
+    fontStyle: "italic",
+  },
+  liveEducatorsLoading: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
   tabs: {
     flexDirection: "row",

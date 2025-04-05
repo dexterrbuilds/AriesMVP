@@ -21,6 +21,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import ConversationScreen from '../screens/ConversationScreen';
 import CommentsScreen from '../screens/CommentScreen';
 import PostDetailsScreen from '../screens/PostDetailsScreen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 
 export type RootStackParamList = {
@@ -49,6 +50,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <UserProvider>
       <NavigationIndependentTree>
         <NavigationContainer>
@@ -77,5 +79,6 @@ export default function App() {
         </NavigationContainer>
       </NavigationIndependentTree>
     </UserProvider>
+    </GestureHandlerRootView>
   );
 }
