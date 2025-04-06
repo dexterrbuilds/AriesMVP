@@ -906,7 +906,7 @@ export default function FeedScreen({ route, navigation }) {
                         }}
                       >
                         <Ionicons name="bookmark-outline" size={24} color="black" />
-                        <Text style={styles.actionText}>Save</Text>
+                        <Text style={styles.actionText}>Select</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
                         style={styles.actionButton}
@@ -916,7 +916,7 @@ export default function FeedScreen({ route, navigation }) {
                         }}
                       >
                         <Ionicons name="library-outline" size={24} color="black" />
-                        <Text style={styles.actionText}>Library</Text>
+                        <Text style={styles.actionText}>Add to Readlist</Text>
                       </TouchableOpacity>
                     </View>
                   </TouchableOpacity>
