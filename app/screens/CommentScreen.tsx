@@ -38,10 +38,13 @@ const handleOpenLink = async (url) => {
 
 // Function to render text with clickable links
 const TextWithLinks = ({ text }) => {
+  // Ensure `text` is always a string
+  const safeText = text || ""; // Fallback to an empty string if `text` is undefined or null
+
   // Split text by URLs and render accordingly
   const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
-  const matches = text.match(urlRegex) || [];
+  const parts = safeText.split(urlRegex);
+  const matches = safeText.match(urlRegex) || [];
   
   return (
     <Text style={styles.postContent}>
@@ -66,38 +69,82 @@ const TextWithLinks = ({ text }) => {
 };
 
 export default function CommentsScreen({ route, navigation } : any) {
-  const { postId, post } = route.params;
+  const { post: routePost } = route.params;
   const { user, token } = useUser();
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
-  const [loadingComments, setLoadingComments] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [likedComments, setLikedComments] = useState([]);
+  const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Only fetch comments when component mounts
   useEffect(() => {
     fetchComments();
-  }, [postId, token]);
+  }, [routePost.id, token]);
 
   const fetchComments = async () => {
-    setLoadingComments(true);
+    if (!routePost?.id || !token) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${postId}`, {
+      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${routePost.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
       
+      // If the response is not OK, we need to check if it's the "no comments" message
       if (!commentsResponse.ok) {
-        throw new Error("Failed to fetch comments");
+        const errorData = await commentsResponse.json();
+        // If it's the specific "no comments" message, treat it as empty comments, not an error
+        if (errorData.message === "no comments for this post yet") {
+          setComments([]);
+          setLoading(false);
+          return;
+        }
+        throw new Error(errorData.message || "Failed to fetch comments");
       }
       
       const commentsData = await commentsResponse.json();
-      setComments(commentsData.comments || []);
+      
+      // Process comments data
+      if (Array.isArray(commentsData)) {
+        // Direct array of comments
+        setComments(commentsData);
+        
+        // Initialize liked comments
+        const initialLikedComments = commentsData
+          .filter(comment => comment.is_liked)
+          .map(comment => comment.id);
+        setLikedComments(initialLikedComments);
+      } else if (commentsData && commentsData.comments && Array.isArray(commentsData.comments)) {
+        // Object with comments property
+        setComments(commentsData.comments);
+        
+        // Initialize liked comments
+        const initialLikedComments = commentsData.comments
+          .filter(comment => comment.is_liked)
+          .map(comment => comment.id);
+        setLikedComments(initialLikedComments);
+      } else {
+        // If structure is unclear, set empty array
+        setComments([]);
+      }
     } catch (error) {
       console.error("Error fetching comments:", error);
+      
+      // Special handling for the "no comments" error message
+      if (error.message === "no comments for this post yet") {
+        setComments([]);
+      } else {
+        setError("Couldn't load comments. Pull down to refresh.");
+      }
     } finally {
-      setLoadingComments(false);
+      setLoading(false);
     }
   };
 
@@ -150,25 +197,25 @@ export default function CommentsScreen({ route, navigation } : any) {
       
       <ScrollView style={styles.scrollContainer}>
         {/* Original Post */}
-        {post && (
+        {routePost && (
           <View style={styles.originalPost}>
             <TouchableOpacity onPress={() => navigation.navigate("UsersProfile", { userName: post.user.username })}>
               <View style={styles.postHeader}>
                 <Image
-                  source={{ uri: post.user.avatar || 'https://via.placeholder.com/100' }}
+                  source={{ uri: routePost.user.avatar || 'https://via.placeholder.com/100' }}
                   style={styles.avatar}
                 />
                 <View>
-                  <Text style={styles.authorName}>{post.user.first_name} {post.user.last_name}</Text>
-                  <Text style={styles.username}>@{post.user.username}</Text>
-                  {post.user.role && <Text style={styles.userRole}>{post.user.role}</Text>}
+                  <Text style={styles.authorName}>{routePost.user.first_name} {routePost.user.last_name}</Text>
+                  <Text style={styles.username}>@{routePost.user.username}</Text>
+                  {routePost.user.role && <Text style={styles.userRole}>{routePost.user.role}</Text>}
                 </View>
               </View>
             </TouchableOpacity>
-            <TextWithLinks text={post.body} />
-            {post.media_link && (
+            <TextWithLinks text={routePost?.body} />
+            {routePost.media_link && (
               <Image
-                source={{ uri: post.media_link }}
+                source={{ uri: routePost.media_link }}
                 style={styles.postImage}
                 resizeMode="cover"
               />
@@ -184,7 +231,7 @@ export default function CommentsScreen({ route, navigation } : any) {
               : 'No comments yet'}
           </Text>
           
-          {loadingComments ? (
+          {loading ? (
             <View style={styles.loadingCommentsContainer}>
               <ActivityIndicator size="small" color="#0000ff" />
               <Text style={styles.loadingCommentsText}>Loading comments...</Text>
@@ -204,7 +251,7 @@ export default function CommentsScreen({ route, navigation } : any) {
                     </View>
                   </View>
                 </TouchableOpacity>
-                <TextWithLinks text={comment.body} />
+                <TextWithLinks text={comment.content} />
               </View>
             ))
           )}

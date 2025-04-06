@@ -152,7 +152,7 @@ export default function PostDetailsScreen({ route, navigation }) {
     setError(null);
     
     try {
-      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comments/${routePost.id}`, {
+      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${routePost.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

@@ -906,8 +906,8 @@ export default function FeedScreen({ route, navigation }) {
                           handleAddToReadlist(post);
                         }}
                       >
-                        <Ionicons name="bookmark-outline" size={20} color="black" />
-                        <Text style={styles.actionText}>Select</Text>
+                        <Feather name="paperclip" size={20} color="#000" />
+                        <Text style={styles.actionText}>Add to Readlist</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
                         style={styles.actionButton}
@@ -916,8 +916,8 @@ export default function FeedScreen({ route, navigation }) {
                           handleAddToLibrary(post.id);
                         }}
                       >
-                        <Feather name="paperclip" size={20} color="#000" />
-                        <Text style={styles.actionText}>Add to Readlist</Text>
+                        <Ionicons name="bookmark-outline" size={20} color="black" />
+                        <Text style={styles.actionText}>Select</Text>
                       </TouchableOpacity>
                     </View>
                   </TouchableOpacity>
