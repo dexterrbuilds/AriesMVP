@@ -894,7 +894,7 @@ export default function FeedScreen({ route, navigation }) {
                           });
                         }}
                       >
-                        <Ionicons name="chatbubble-outline" size={24} color="#666" />
+                        <Ionicons name="chatbubble-outline" size={20} color="#666" />
                         <Text style={styles.actionText}>
                           {post.comments_count > 0 ? `${post.comments_count}` : ''} Comment{post.comments_count !== 1 ? 's' : ''}
                         </Text>
@@ -906,7 +906,7 @@ export default function FeedScreen({ route, navigation }) {
                           handleAddToReadlist(post);
                         }}
                       >
-                        <Ionicons name="bookmark-outline" size={24} color="black" />
+                        <Ionicons name="bookmark-outline" size={20} color="black" />
                         <Text style={styles.actionText}>Select</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
@@ -916,7 +916,7 @@ export default function FeedScreen({ route, navigation }) {
                           handleAddToLibrary(post.id);
                         }}
                       >
-                        <Feather name="paperclip" size={24} color="#000" />
+                        <Feather name="paperclip" size={20} color="#000" />
                         <Text style={styles.actionText}>Add to Readlist</Text>
                       </TouchableOpacity>
                     </View>

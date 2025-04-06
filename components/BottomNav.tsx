@@ -6,19 +6,19 @@ const BottomNav = ({ navigation }: any) => {
   return (
     <View style={styles.bottomnav}>
       <TouchableOpacity onPress={() => navigation.navigate("Feed")}>
-        <Ionicons name="home-outline" size={30} color="black" />
+        <Ionicons name="home-outline" size={24} color="black" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("Search")}>
-        <Ionicons name="search-outline" size={30} color="black" />
+        <Ionicons name="search-outline" size={24} color="black" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("Feed")}>
-        <Ionicons name="grid-outline" size={30} color="black" />
+        <Ionicons name="grid-outline" size={24} color="black" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("Messages")}>
-        <Ionicons name="chatbox-ellipses-outline" size={30} color="black" />
+        <Ionicons name="chatbox-ellipses-outline" size={24} color="black" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-        <Ionicons name="person-outline" size={30} color="black" />
+        <Ionicons name="person-outline" size={24} color="black" />
       </TouchableOpacity>
     </View>
   );
