@@ -13,6 +13,7 @@ import {
   Modal
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Feather from 'react-native-vector-icons/Feather';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import * as DocumentPicker from 'expo-document-picker';
@@ -915,7 +916,7 @@ export default function FeedScreen({ route, navigation }) {
                           handleAddToLibrary(post.id);
                         }}
                       >
-                        <Ionicons name="library-outline" size={24} color="black" />
+                        <Feather name="paperclip" size={24} color="#000" />
                         <Text style={styles.actionText}>Add to Readlist</Text>
                       </TouchableOpacity>
                     </View>
