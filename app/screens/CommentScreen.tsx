@@ -65,7 +65,7 @@ const TextWithLinks = ({ text }) => {
   );
 };
 
-export default function CommentsScreen({ route, navigation }) {
+export default function CommentsScreen({ route, navigation } : any) {
   const { postId, post } = route.params;
   const { user, token } = useUser();
   const [comments, setComments] = useState([]);
@@ -81,7 +81,7 @@ export default function CommentsScreen({ route, navigation }) {
   const fetchComments = async () => {
     setLoadingComments(true);
     try {
-      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/posts/${postId}/comments`, {
+      const commentsResponse = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/comment/${postId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

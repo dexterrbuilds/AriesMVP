@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
-  Platform
+  Platform,
+  Modal
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from 'expo-file-system';
@@ -113,7 +114,7 @@ const handleFileOpen = async (fileUrl, fileType) => {
 };
 
 // Function to open links
-const handleOpenLink = async (url: string) => {
+const handleOpenLink = async (url) => {
   try {
     // Check if this is a file link
     const fileType = getFileType(url);
@@ -419,6 +420,129 @@ const isLiveNow = (scheduledAt, endedAt) => {
   return endedAt === null && now >= scheduled;
 };
 
+// ReadlistModal Component
+const ReadlistModal = ({ visible, onClose, post, token, navigation }) => {
+  const [readlists, setReadlists] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch user's readlists
+  useEffect(() => {
+    if (visible) {
+      fetchReadlists();
+    }
+  }, [visible]);
+
+  const fetchReadlists = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("https://ariesmvp-9903a26b3095.herokuapp.com/api/readlists/user", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch readlists');
+      }
+      
+      const data = await response.json();
+      setReadlists(data.readlists || []);
+    } catch (error) {
+      console.error("Error fetching readlists:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addToReadlist = async (readlistId) => {
+    try {
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/readlist/${readlistId}/add-post`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ post_id: post.id }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add to readlist');
+      }
+      
+      // Show success message or feedback
+      alert('Added to readlist successfully!');
+      onClose();
+    } catch (error) {
+      console.error("Error adding to readlist:", error);
+      alert('Failed to add to readlist. Please try again.');
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay} 
+        activeOpacity={1} 
+        onPress={onClose}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalHandle} />
+          
+          <Text style={styles.modalTitle}>Add to Readlist</Text>
+          
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#3366ff" />
+              <Text style={styles.loadingText}>Loading readlists...</Text>
+            </View>
+          ) : readlists.length > 0 ? (
+            <ScrollView style={styles.readlistsContainer}>
+              {readlists.map((readlist) => (
+                <TouchableOpacity
+                  key={readlist.id}
+                  style={styles.readlistItem}
+                  onPress={() => addToReadlist(readlist.id)}
+                >
+                  <Ionicons name="bookmark" size={24} color="#3366ff" />
+                  <View style={styles.readlistInfo}>
+                    <Text style={styles.readlistName}>{readlist.name}</Text>
+                    <Text style={styles.readlistCount}>
+                      {readlist.posts_count || 0} posts
+                    </Text>
+                  </View>
+                  <Ionicons name="add-circle" size={24} color="#3366ff" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyReadlist}>
+              <Ionicons name="bookmark-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyReadlistText}>No readlists yet</Text>
+            </View>
+          )}
+          
+          <TouchableOpacity
+            style={styles.createReadlistButton}
+            onPress={() => {
+              onClose();
+              navigation.navigate("CreateReadlist");
+            }}
+          >
+            <Ionicons name="add" size={24} color="white" />
+            <Text style={styles.createReadlistText}>Create New Readlist</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
 export default function FeedScreen({ route, navigation }) {
   const { user, token } = useUser();
   const [activeTab, setActiveTab] = useState("For You");
@@ -427,8 +551,9 @@ export default function FeedScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [liveClasses, setLiveClasses] = useState([]);
   const [loadingLiveClasses, setLoadingLiveClasses] = useState(true);
-  const [likedPosts, setLikedPosts] = useState([]);
   const isFocused = useIsFocused();
+  const [readlistModalVisible, setReadlistModalVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
 
   const fetchPosts = async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -468,14 +593,6 @@ export default function FeedScreen({ route, navigation }) {
       }) : [];
       
       setPosts(processedPosts);
-      
-      // Initialize liked posts based on response data
-      if (data.posts && Array.isArray(data.posts)) {
-        const initialLikedPosts = data.posts
-          .filter(post => post.is_liked)
-          .map(post => post.id);
-        setLikedPosts(initialLikedPosts);
-      }
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
@@ -527,48 +644,31 @@ export default function FeedScreen({ route, navigation }) {
     fetchLiveClasses();
   };
 
-  const handleLike = async (postId) => {
+  const handleAddToReadlist = (post) => {
+    setSelectedPost(post);
+    setReadlistModalVisible(true);
+  };
+
+  const handleAddToLibrary = async (postId) => {
     try {
-      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/post/${postId}/like`, {
+      const response = await fetch(`https://ariesmvp-9903a26b3095.herokuapp.com/api/library/add`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ post_id: postId }),
       });
       
-      if (response.ok) {
-        // Toggle the liked status locally
-        setLikedPosts(prevLikedPosts => {
-          if (prevLikedPosts.includes(postId)) {
-            return prevLikedPosts.filter(id => id !== postId);
-          } else {
-            return [...prevLikedPosts, postId];
-          }
-        });
-        
-        // Update the liked count in the posts array
-        setPosts(prevPosts => {
-          return prevPosts.map(post => {
-            if (post.id === postId) {
-              const isAlreadyLiked = likedPosts.includes(postId);
-              const likesCount = isAlreadyLiked ?
-                (post.likes_count > 0 ? post.likes_count - 1 : 0) :
-                ((post.likes_count || 0) + 1);
-              return {
-                ...post,
-                likes_count: likesCount
-              };
-            }
-            return post;
-          });
-        });
-      } else {
-        const errorData = await response.json();
-        console.error("Like error:", errorData);
+      if (!response.ok) {
+        throw new Error('Failed to add to library');
       }
+      
+      // Show success message
+      alert('Added to library successfully!');
     } catch (error) {
-      console.error("Error liking post:", error);
+      console.error("Error adding to library:", error);
+      alert('Failed to add to library. Please try again.');
     }
   };
 
@@ -736,66 +836,54 @@ export default function FeedScreen({ route, navigation }) {
           {/* Active Content */}
           {activeContent.length > 0 ? (
             <View style={styles.posts}>
-              {activeContent.map((post) => {
-                const isLiked = likedPosts.includes(post.id);
-                return (
-                  <TouchableOpacity
-                    key={post.id}
-                    style={styles.postContainer}
-                    onPress={() => navigateToPostDetails(post)}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation(); // Prevent triggering the parent onPress
-                          navigation.navigate("UsersProfile", { userName: post.user.username });
-                        }}
-                      >
-                        <View>
-                          <Image
-                            source={{uri: post.user.avatar || 'https://via.placeholder.com/100'}}
-                            style={styles.postAvatar}
+              {activeContent.map((post) => (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.postContainer}
+                  onPress={() => navigateToPostDetails(post)}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation(); // Prevent triggering the parent onPress
+                        navigation.navigate("UsersProfile", { userName: post.user.username });
+                      }}
+                    >
+                      <View>
+                        <Image
+                          source={{uri: post.user.avatar || 'https://via.placeholder.com/100'}}
+                          style={styles.userAvatar}
                           />
                         </View>
                       </TouchableOpacity>
-                      <View>
-                        <Text style={styles.postAuthor}>{post.user.first_name} {post.user.last_name}</Text>
-                        <Text style={styles.userName}>@{post.user.username}</Text>
-                        <Text style={styles.postRole}>{post.user.role}</Text>
+                      <View style={styles.postUserInfo}>
+                        <Text style={styles.userName}>{post.user.first_name} {post.user.last_name}</Text>
+                        <Text style={styles.userRole}>{post.user.role || 'User'}</Text>
                       </View>
                     </View>
-                    
-                    {/* Post content with clickable links */}
-                    <TextWithLinks text={post.body} />
-                    
-                    {/* Link preview for posts with links but no images */}
-                    {post.hasOnlyTextAndLink && post.urls.length > 0 && (
-                      <SafeLinkPreview url={post.urls[0]} />
-                    )}
-                    
-                    {/* Post media - render based on media type */}
-                    {post.media_link && (
-                      <MediaContent mediaUrl={post.media_link} />
-                    )}
-                    
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={(e) => {
-                          e.stopPropagation(); // Prevent triggering the parent onPress
-                          handleLike(post.id);
-                        }}
-                      >
-                        <Ionicons
-                          name={isLiked ? "heart" : "heart-outline"}
-                          size={24}
-                          color={isLiked ? "#ff4757" : "#666"}
+  
+                    <View style={styles.contentContainer}>
+                      <View style={styles.textContentContainer}>
+                        <TextWithLinks text={post.body} />
+                      </View>
+  
+                      {/* Handle media link if present */}
+                      {post.media_link && (
+                        <MediaContent 
+                          mediaUrl={post.media_link} 
+                          preventNavigation={true}
                         />
-                        <Text style={[styles.actionText, isLiked && {color: '#ff4757'}]}>
-                          {post.likes_count > 0 ? `${post.likes_count}` : ''} Like{post.likes_count !== 1 ? 's' : ''}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
+                      )}
+  
+                      {/* Handle URLs embedded in the post if no media is present */}
+                      {post.hasOnlyTextAndLink && post.urls.length > 0 && (
+                        <SafeLinkPreview url={post.urls[0]} />
+                      )}
+                    </View>
+  
+                    {/* Post Actions */}
+                    <View style={styles.postActions}>
+                    <TouchableOpacity
                         style={styles.actionButton}
                         onPress={(e) => {
                           e.stopPropagation(); // Prevent triggering the parent onPress
@@ -810,517 +898,507 @@ export default function FeedScreen({ route, navigation }) {
                           {post.comments_count > 0 ? `${post.comments_count}` : ''} Comment{post.comments_count !== 1 ? 's' : ''}
                         </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
+                      <TouchableOpacity 
                         style={styles.actionButton}
                         onPress={(e) => {
-                          e.stopPropagation(); // Prevent triggering the parent onPress
-                          if (Platform.OS === 'ios' || Platform.OS === 'android') {
-                            const message = post.body;
-                            const url = post.urls.length > 0 ? post.urls[0] : undefined;
-                            Sharing.shareAsync({
-                              title: `Shared post from ${post.user.first_name} ${post.user.last_name}`,
-                              message,
-                              url
-                            }).catch(err => console.error('Error sharing post:', err));
-                          }
+                          e.stopPropagation();
+                          handleAddToReadlist(post);
                         }}
                       >
-                        <Ionicons name="share-social-outline" size={24} color="#666" />
-                        <Text style={styles.actionText}>Share</Text>
+                        <Ionicons name="bookmark-outline" size={24} color="black" />
+                        <Text style={styles.actionText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.actionButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleAddToLibrary(post.id);
+                        }}
+                      >
+                        <Ionicons name="library-outline" size={24} color="black" />
+                        <Text style={styles.actionText}>Library</Text>
                       </TouchableOpacity>
                     </View>
-                    
-                    {/* Show interactions count (likes, comments) */}
-                    {(post.likes_count > 0 || post.comments_count > 0) && (
-                      <View style={styles.interactionSummary}>
-                        {post.likes_count > 0 && (
-                          <View style={styles.interactionItem}>
-                            <Ionicons name="heart" size={14} color="#ff4757" />
-                            <Text style={styles.interactionText}>{post.likes_count}</Text>
-                          </View>
-                        )}
-                        {post.comments_count > 0 && (
-                          <View style={styles.interactionItem}>
-                            <Ionicons name="chatbubble" size={14} color="#3366ff" />
-                            <Text style={styles.interactionText}>{post.comments_count}</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
                   </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="document-text-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No posts available</Text>
-              <Text style={styles.emptySubtext}>Follow more educators to see their content here</Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={() => navigation.navigate("Discover")}
-              >
-                <Text style={styles.emptyButtonText}>Discover Educators</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-      )}
-      
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("Post")}
-      >
-        <Ionicons name="add" size={28} color="white" />
-      </TouchableOpacity>
-      
-      {/* Bottom Navigation */}
-      <BottomNav navigation={navigation} />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "white",
-  },
-  videoContainer: {
-    width: "100%",
-    height: 200,
-    backgroundColor: "#000",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  videoPlayer: {
-    width: "100%",
-    height: "100%",
-  },
-  // Just add these to your existing styles
-videoContainer: {
-  width: "100%",
-  height: 220,
-  backgroundColor: "#000",
-  borderRadius: 8,
-  overflow: "hidden",
-  marginBottom: 12,
-  position: "relative",
-},
-videoPlayer: {
-  width: "100%",
-  height: "100%",
-},
-videoOverlay: {
-  ...StyleSheet.absoluteFillObject,
-  backgroundColor: "rgba(0,0,0,0.2)",
-  justifyContent: "center",
-  alignItems: "center",
-},
-playButtonContainer: {
-  width: 70,
-  height: 70,
-  borderRadius: 35,
-  backgroundColor: "rgba(0,0,0,0.6)",
-  justifyContent: "center",
-  alignItems: "center",
-},
-videoProgressContainer: {
-  position: "absolute",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  height: 3,
-  backgroundColor: "rgba(255,255,255,0.3)",
-},
-videoProgress: {
-  height: 3,
-  backgroundColor: "#3366ff",
-},
-documentContainer: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: "#f9f9f9",
-  borderRadius: 12,
-  padding: 12,
-  marginVertical: 10,
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 3,
-  elevation: 2,
-},
-documentIconContainer: {
-  width: 70,
-  height: 70,
-  borderRadius: 10,
-  justifyContent: "center",
-  alignItems: "center",
-  marginRight: 12,
-},
-documentExtension: {
-  fontSize: 12,
-  fontWeight: "600",
-  marginTop: 4,
-},
-documentInfo: {
-  flex: 1,
-},
-documentName: {
-  fontWeight: "bold",
-  fontSize: 16,
-  marginBottom: 6,
-},
-documentSize: {
-  fontSize: 12,
-  color: "#666",
-},
-documentActionButton: {
-  width: 36,
-  height: 36,
-  borderRadius: 18,
-  backgroundColor: "#3366ff",
-  justifyContent: "center",
-  alignItems: "center",
-},
-  fab: {
-    position: "absolute",
-    bottom: 80,
-    right: 20,
-    width: 60,
-    height: 60,
-    backgroundColor: "black",
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    paddingTop: Platform.OS === "ios" ? 50 : 16,
-    marginTop: 10,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  screen: {
-    flex: 1,
-  },
-  liveEducators: {
-    padding: 16,
-    backgroundColor: "#fff",
-    marginBottom: 16,
-  },
-  educatorContainer: {
-    alignItems: "center",
-    marginRight: 20,
-    width: 100,
-  },
-  liveIndicator: {
-    borderWidth: 3,
-    borderColor: "#ff4757",
-    borderRadius: 38,
-    padding: 3,
-    position: "relative",
-  },
-  liveNowIndicator: {
-    borderColor: "#ff4757",
-    shadowColor: "#ff4757",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  scheduledIndicator: {
-    borderColor: "#3366ff",
-  },
-  educatorAvatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-  },
-  liveNowBadge: {
-    position: "absolute",
-    bottom: -2,
-    backgroundColor: "#ff4757",
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    alignSelf: "center",
-  },
-  liveNowText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  educatorName: {
-    marginTop: 8,
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "600",
-    width: 100,
-  },
-  classTitle: {
-    textAlign: "center",
-    fontSize: 12,
-    color: "#666",
-    marginTop: 2,
-    width: 100,
-  },
-  classTime: {
-    textAlign: "center",
-    fontSize: 11,
-    color: "#ff4757",
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  sectionLink: {
-    fontSize: 14,
-    color: "#3366ff",
-  },
-  noLiveClasses: {
-    padding: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  noLiveClassesText: {
-    color: "#999",
-    fontStyle: "italic",
-  },
-  liveEducatorsLoading: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  tabs: {
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 8,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginRight: 16,
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: "#3366ff",
-  },
-  tabText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  activeTabText: {
-    color: "#3366ff",
-    fontWeight: "600",
-  },
-  banners: {
-    padding: 16,
-    backgroundColor: "#fff",
-    marginBottom: 8,
-  },
-  bannerImage: {
-    width: 300,
-    height: 100,
-    borderRadius: 8,
-    marginRight: 16,
-  },
-  posts: {
-  },
-  postContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: 'white',
-    elevation: 2,
-  },
-  postAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-  },
-  postAuthor: {
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  userName: {
-    color: "#666",
-    fontSize: 14,
-  },
-  postRole: {
-    color: "#3366ff",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  postContent: {
-    fontSize: 16,
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  linkText: {
-    color: "#3366ff",
-    textDecorationLine: "underline",
-  },
-  postImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  actionButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-    paddingTop: 12,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  actionText: {
-    marginLeft: 4,
-    color: "#666",
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-    backgroundColor: "#fff",
-    margin: 16,
-    borderRadius: 12,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 16,
-    color: "#666",
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 8,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  emptyButton: {
-    backgroundColor: "#3366ff",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  emptyButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
-  },
-  linkPreviewContainer: {
-    marginVertical: 12,
-  },
-  linkPreview: {
-    flexDirection: "row",
-    backgroundColor: "#f9f9f9",
-    borderRadius: 8,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-  linkPreviewImage: {
-    width: 80,
-    height: 80,
-  },
-  linkPreviewNoImage: {
-    width: 80,
-    height: 80,
-    backgroundColor: "#f0f0f0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  linkPreviewContent: {
-    flex: 1,
-    padding: 10,
-    justifyContent: "space-between",
-  },
-  linkPreviewTitle: {
-    fontWeight: "bold",
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  linkPreviewDescription: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 4,
-  },
-  linkPreviewUrl: {
-    fontSize: 10,
-    color: "#999",
-  },
-  linkPreviewLoading: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 8,
-  },
-  linkPreviewLoadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#666",
-  },
-  interactionSummary: {
-    flexDirection: "row",
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1, 
-    borderTopColor: "#f0f0f0",
-  },
-  interactionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  interactionText: {
-    fontSize: 12,
-    color: "#666",
-    marginLeft: 4,
+                ))}
+              </View>
+            ) : (
+              <View style={styles.noPostsContainer}>
+                <Ionicons name="newspaper-outline" size={64} color="#ccc" />
+                <Text style={styles.noPostsText}>No posts available</Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
+  
+        {/* Bottom Navigation */}
+        <BottomNav activeScreen="Feed" navigation={navigation} />
+  
+        {/* Readlist Modal */}
+        <ReadlistModal
+          visible={readlistModalVisible}
+          onClose={() => setReadlistModalVisible(false)}
+          post={selectedPost}
+          token={token}
+          navigation={navigation}
+        />
+  
+        {/* Floating Add Post Button */}
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate("CreatePost")}
+        >
+          <Ionicons name="add" size={32} color="white" />
+        </TouchableOpacity>
+      </View>
+    );
   }
-});
+  
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: "#f8f8f8",
+    },
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 15,
+      paddingTop: 50,
+      paddingBottom: 10,
+      backgroundColor: "white",
+      borderBottomWidth: 1,
+      borderBottomColor: "#f0f0f0",
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    screen: {
+      flex: 1,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    loadingText: {
+      marginTop: 10,
+      fontSize: 16,
+      color: "#666",
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 15,
+      paddingBottom: 10,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    sectionLink: {
+      fontSize: 14,
+      color: "#3366ff",
+    },
+    liveEducators: {
+      paddingLeft: 15,
+      marginBottom: 15,
+    },
+    liveEducatorsLoading: {
+      height: 120,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    educatorContainer: {
+      alignItems: "center",
+      marginRight: 20,
+      width: 90,
+    },
+    liveIndicator: {
+      padding: 3,
+      borderRadius: 50,
+      marginBottom: 5,
+    },
+    liveNowIndicator: {
+      borderWidth: 2,
+      borderColor: "#FF3B30",
+    },
+    scheduledIndicator: {
+      borderWidth: 2,
+      borderColor: "#8E8E93",
+    },
+    educatorAvatar: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+    },
+    liveNowBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      backgroundColor: "#FF3B30",
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    liveNowText: {
+      color: "white",
+      fontSize: 10,
+      fontWeight: "700",
+    },
+    educatorName: {
+      fontSize: 12,
+      fontWeight: "600",
+      textAlign: "center",
+      marginTop: 5,
+    },
+    classTitle: {
+      fontSize: 10,
+      color: "#666",
+      textAlign: "center",
+      marginTop: 2,
+    },
+    classTime: {
+      fontSize: 10,
+      color: "#ff3b30",
+      fontWeight: "600",
+      marginTop: 2,
+    },
+    noLiveClasses: {
+      height: 80,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    noLiveClassesText: {
+      color: "#999",
+      fontSize: 14,
+    },
+    tabs: {
+      flexDirection: "row",
+      marginBottom: 10,
+      backgroundColor: "white",
+      padding: 15,
+    },
+    tab: {
+      marginRight: 20,
+      paddingBottom: 5,
+    },
+    activeTab: {
+      borderBottomWidth: 2,
+      borderBottomColor: "#3366ff",
+    },
+    tabText: {
+      fontSize: 16,
+      color: "#666",
+    },
+    activeTabText: {
+      color: "#3366ff",
+      fontWeight: "600",
+    },
+    banners: {
+      height: 100,
+      backgroundColor: "white",
+      paddingLeft: 15,
+      marginBottom: 15,
+    },
+    bannerImage: {
+      width: 300,
+      height: 100,
+      marginRight: 15,
+      borderRadius: 10,
+    },
+    posts: {
+    },
+    postContainer: {
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f0f0f0',
+      backgroundColor: 'white',
+      elevation: 2,
+    },  
+    userAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 10,
+    },
+    postUserInfo: {
+      flex: 1,
+    },
+    userName: {
+      fontWeight: "600",
+      fontSize: 16,
+    },
+    userRole: {
+      color: "#666",
+      fontSize: 12,
+    },
+    contentContainer: {
+      marginBottom: 15,
+    },
+    textContentContainer: {
+      marginBottom: 10,
+    },
+    postContent: {
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    linkText: {
+      color: "#3366ff",
+      textDecorationLine: "underline",
+    },
+    postImage: {
+      width: "100%",
+      height: 200,
+      borderRadius: 10,
+      marginBottom: 10,
+    },
+    videoContainer: {
+      width: "100%",
+      height: 200,
+      borderRadius: 10,
+      marginBottom: 10,
+      backgroundColor: "#000",
+      overflow: "hidden",
+      position: "relative",
+    },
+    videoPlayer: {
+      width: "100%",
+      height: "100%",
+    },
+    videoOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    playButtonContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    videoProgressContainer: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: "rgba(255,255,255,0.3)",
+    },
+    videoProgress: {
+      height: "100%",
+      backgroundColor: "#ff3b30",
+    },
+    documentContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#f9f9f9",
+      borderRadius: 10,
+      padding: 15,
+      marginBottom: 10,
+    },
+    documentIconContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: 10,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 15,
+    },
+    documentExtension: {
+      fontSize: 10,
+      fontWeight: "bold",
+      marginTop: 5,
+    },
+    documentInfo: {
+      flex: 1,
+    },
+    documentName: {
+      fontSize: 14,
+      fontWeight: "500",
+    },
+    documentSize: {
+      fontSize: 12,
+      color: "#666",
+      marginTop: 4,
+    },
+    documentActionButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "#3366ff",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    linkPreviewContainer: {
+      marginBottom: 10,
+    },
+    linkPreview: {
+      flexDirection: "row",
+      backgroundColor: "#f9f9f9",
+      borderRadius: 10,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: "#eee",
+    },
+    linkPreviewImage: {
+      width: 100,
+      height: 100,
+    },
+    linkPreviewNoImage: {
+      width: 100,
+      height: 100,
+      backgroundColor: "#eee",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    linkPreviewContent: {
+      flex: 1,
+      padding: 10,
+    },
+    linkPreviewTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      marginBottom: 5,
+    },
+    linkPreviewDescription: {
+      fontSize: 12,
+      color: "#666",
+      marginBottom: 5,
+    },
+    linkPreviewUrl: {
+      fontSize: 10,
+      color: "#999",
+    },
+    linkPreviewLoading: {
+      height: 100,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#f9f9f9",
+      borderRadius: 10,
+    },
+    linkPreviewLoadingText: {
+      marginTop: 10,
+      fontSize: 14,
+      color: "#666",
+    },
+    postActions: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      borderTopWidth: 1,
+      borderTopColor: "#f0f0f0",
+      paddingTop: 15,
+    },
+    actionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    actionText: {
+      marginLeft: 5,
+      fontSize: 14,
+      color: "#666",
+    },
+    noPostsContainer: {
+      padding: 30,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    noPostsText: {
+      marginTop: 10,
+      fontSize: 16,
+      color: "#999",
+    },
+    addButton: {
+      position: "absolute",
+      right: 20,
+      bottom: 80,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: "#3366ff",
+      justifyContent: "center",
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      backgroundColor: "white",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      maxHeight: "70%",
+    },
+    modalHandle: {
+      width: 40,
+      height: 5,
+      backgroundColor: "#e0e0e0",
+      borderRadius: 3,
+      alignSelf: "center",
+      marginBottom: 20,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      marginBottom: 20,
+    },
+    readlistsContainer: {
+      maxHeight: 300,
+    },
+    readlistItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: "#f0f0f0",
+    },
+    readlistInfo: {
+      flex: 1,
+      marginLeft: 15,
+    },
+    readlistName: {
+      fontSize: 16,
+      fontWeight: "500",
+    },
+    readlistCount: {
+      fontSize: 12,
+      color: "#666",
+      marginTop: 2,
+    },
+    emptyReadlist: {
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 30,
+    },
+    emptyReadlistText: {
+      marginTop: 10,
+      fontSize: 16,
+      color: "#999",
+    },
+    createReadlistButton: {
+      flexDirection: "row",
+      backgroundColor: "#3366ff",
+      borderRadius: 10,
+      padding: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 20,
+    },
+    createReadlistText: {
+      color: "white",
+      fontWeight: "600",
+      fontSize: 16,
+      marginLeft: 10,
+    },
+  });
